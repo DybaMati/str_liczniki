@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block content %}
+<style>
+.pv-header{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px}
+.pv-card{background:rgba(255,255,255,0.08);border-radius:6px;padding:10px 14px;flex:1;min-width:120px}
+.pv-card-label{font-size:12px;color:#aaa;margin:0 0 2px}
+.pv-card-value{font-size:22px;font-weight:500;margin:0}
+.pv-meta{color:#888;font-size:13px;margin-top:10px}
+</style>
+
+<h1 style="font-weight:600;font-size:1.2rem;margin:0 0 12px">Odczyt na żywo</h1>
+<p class="pv-meta" id="pv-status">Ładowanie…</p>
+
+<div class="pv-header">
+  <div class="pv-card">
+    <p class="pv-card-label">Czas odczytu</p>
+    <p class="pv-card-value" id="pv-time">—</p>
+  </div>
+  <div class="pv-card">
+    <p class="pv-card-label">PV produkcja</p>
+    <p class="pv-card-value" id="pv-pv">—</p>
+  </div>
+  <div class="pv-card">
+    <p class="pv-card-label">Tomek L1</p>
+    <p class="pv-card-value" id="pv-l1">—</p>
+  </div>
+  <div class="pv-card">
+    <p class="pv-card-label">Lonia L2</p>
+    <p class="pv-card-value" id="pv-l2">—</p>
+  </div>
+  <div class="pv-card">
+    <p class="pv-card-label">Henia L3</p>
+    <p class="pv-card-value" id="pv-l3">—</p>
+  </div>
+  <div class="pv-card">
+    <p class="pv-card-label">Suma zużycia</p>
+    <p class="pv-card-value" id="pv-sum">—</p>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+function fmtW(n) {
+  if (n == null || Number.isNaN(n)) return '—';
+  return Math.round(n) + ' W';
+}
+async function tick() {
+  const st = document.getElementById('pv-status');
+  try {
+    const r = await fetch('/api/live');
+    const j = await r.json();
+    if (!j.ok) {
+      st.textContent = j.error || 'Brak danych w bazie';
+      return;
+    }
+    st.textContent = 'Źródło: ostatni rekord z bazy (odświeżanie co 2 s)';
+    document.getElementById('pv-time').textContent = j.time || '—';
+    document.getElementById('pv-pv').textContent = fmtW(j.pv_w);
+    document.getElementById('pv-l1').textContent = fmtW(j.l1_w);
+    document.getElementById('pv-l2').textContent = fmtW(j.l2_w);
+    document.getElementById('pv-l3').textContent = fmtW(j.l3_w);
+    const sum = (j.l1_w||0)+(j.l2_w||0)+(j.l3_w||0);
+    document.getElementById('pv-sum').textContent = fmtW(sum);
+  } catch (e) {
+    st.textContent = 'Błąd sieci: ' + e;
+  }
+}
+tick();
+setInterval(tick, 2000);
+</script>
+{% endblock %}

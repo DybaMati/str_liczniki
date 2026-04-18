@@ -1,0 +1,64 @@
+from __future__ import annotations
+
+import os
+from functools import lru_cache
+from pathlib import Path
+
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+_BASE_DIR = Path(__file__).resolve().parent.parent
+
+
+class Settings(BaseSettings):
+    model_config = SettingsConfigDict(
+        env_file=str(_BASE_DIR / ".env"),
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
+
+    host: str = "0.0.0.0"
+    port: int = 8765
+
+    database_url: str = "sqlite:///./pv_demo.db"
+
+    # ID liczników (schemat str_liczniki / licznik_pomiary, licznik_energia)
+    licznik_tomek_id: int = 7
+    licznik_lonia_id: int = 8
+    licznik_henia_id: int = 9
+
+    # Tabela z mocami chwilowymi (jak w Node-RED: pv_w, l1_w, l2_w, l3_w)
+    power_table: str = "power_readings"
+    col_ts: str = "ts"
+    col_pv: str = "pv_w"
+    col_l1: str = "l1_w"
+    col_l2: str = "l2_w"
+    col_l3: str = "l3_w"
+
+    # Liczniki energii skumulowanej (kWh) — jedna tabela, wiele wierszy wg licznika
+    meter_table: str = "meter_readings"
+    col_meter_id: str = "meter_id"
+    col_meter_ts: str = "ts"
+    col_meter_kwh: str = "kwh_total"
+
+    # JSON: {"l1":"Tomek L1","l2":"Lonia L2"} — opcjonalnie nadpisuje domyślne nazwy liczników
+    meter_labels_json: str | None = None
+
+    # Opcjonalnie: pełne SQL zamiast budowania z powyższych (multiline w .env jest niewygodne — użyj pliku)
+    sql_live_file: str | None = None
+    sql_history_file: str | None = None
+    sql_meters_delta_file: str | None = None
+
+
+@lru_cache
+def get_settings() -> Settings:
+    return Settings()
+
+
+def read_sql_file(path: str | None, root: str) -> str | None:
+    if not path:
+        return None
+    full = path if os.path.isabs(path) else os.path.join(root, path)
+    if not os.path.isfile(full):
+        return None
+    with open(full, encoding="utf-8") as f:
+        return f.read().strip()

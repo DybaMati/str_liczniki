@@ -1,0 +1,145 @@
+{% extends "base.html" %}
+{% block content %}
+<style>
+.pv-header{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px}
+.pv-card{background:rgba(255,255,255,0.08);border-radius:6px;padding:10px 14px;flex:1;min-width:90px}
+.pv-card-label{font-size:12px;color:#aaa;margin:0 0 2px}
+.pv-card-value{font-size:20px;font-weight:500;margin:0}
+.pv-range{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
+.pv-range label{color:#ccc;font-size:13px}
+.pv-range input{background:#1e1e1e;border:1px solid #444;color:#fff;padding:4px 8px;border-radius:4px;font-size:13px}
+.pv-range button{background:#3b82f6;color:#fff;border:none;padding:5px 14px;border-radius:4px;cursor:pointer;font-size:13px}
+.pv-range button:hover{background:#2563eb}
+</style>
+
+<h1 style="font-weight:600;font-size:1.2rem;margin:0 0 12px">Wykres mocy</h1>
+
+<div style="padding:0; width:100%; box-sizing:border-box;">
+  <div class="pv-range">
+    <label>Od:</label>
+    <input type="date" id="pv-from" />
+    <label>Do:</label>
+    <input type="date" id="pv-to" />
+    <button type="button" id="pv-send">Wyślij</button>
+    <span id="pv-chart-status" style="color:#888;font-size:13px"></span>
+  </div>
+
+  <div id="pvChart" style="width:100%; height:390px;"></div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+(function() {
+    let chart = null;
+    let option = null;
+    const MAX_POINTS = 1440;
+
+    function todayStr() {
+        return new Date().toISOString().slice(0, 10);
+    }
+
+    function initDateInputs() {
+        document.getElementById('pv-from').value = todayStr();
+        document.getElementById('pv-to').value = todayStr();
+    }
+
+    async function sendRange() {
+        const from = document.getElementById('pv-from').value;
+        const to   = document.getElementById('pv-to').value;
+        const status = document.getElementById('pv-chart-status');
+        if (!from || !to) return;
+        status.textContent = 'Ładowanie…';
+        try {
+            const r = await fetch('/api/history?from=' + encodeURIComponent(from) + '&to=' + encodeURIComponent(to));
+            const msg = await r.json();
+            if (msg.ok && msg.data) {
+                loadData(msg.data);
+                status.textContent = msg.data.length + ' punktów';
+            } else {
+                status.textContent = 'Brak danych';
+            }
+        } catch (e) {
+            status.textContent = 'Błąd: ' + e;
+        }
+    }
+
+    function loadECharts() {
+        if (window.echarts) return initChart();
+        var script = document.createElement('script');
+        script.src = 'https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js';
+        script.onload = initChart;
+        document.head.appendChild(script);
+    }
+
+    function initChart() {
+        chart = echarts.init(document.getElementById('pvChart'));
+
+        option = {
+            backgroundColor: 'transparent',
+            grid: { left: 10, right: 10, top: 45, bottom: 80, containLabel: true },
+            tooltip: { trigger: 'axis', axisPointer: { type: 'cross' }, formatter: function(params) { let r =
+'<b>' + params[0].axisValueLabel + '</b><br/>'; params.forEach(function(p) { if (p.value == null) return; r += '<span style="display:inline-block;width:10px;height:10px;background:' + p.color + ';margin-right:4px;border-radius:50%"></span>';
+r += p.seriesName + ': <b>' + Math.round(p.value) + ' W</b><br/>'; }); return r; } },
+            legend: {
+                data: ['PV produkcja', 'Tomek L1', 'Lonia L2', 'Henia L3', 'Suma zużycia'],
+                icon: 'rect',
+                itemWidth: 15,
+                itemHeight: 15,
+                itemGap: 25,
+                textStyle: { color: '#ddd', fontSize: 13 },
+                top: 8,
+                left: 'center'
+            },
+            xAxis: { type: 'category', data: [], axisLabel: { color: '#ccc', fontSize: 11 } },
+            yAxis: { type: 'value', name: 'W', nameTextStyle: { color: '#ccc' }, axisLabel: { color: '#ccc' } },
+            dataZoom: [
+                { type: 'slider', bottom: 15, height: 25, start: 0, end: 100 },
+                { type: 'inside', start: 0, end: 100 }
+            ],
+            series: [
+                { name: 'PV produkcja', type: 'line', data: [], showSymbol: false, lineStyle: { color: '#f59e0b', width: 4 }, itemStyle: { color: '#f59e0b' } },
+                { name: 'Tomek L1',     type: 'line', data: [], showSymbol: false, lineStyle: { color: '#3b82f6', width: 2.5 }, itemStyle: { color: '#3b82f6' } },
+                { name: 'Lonia L2',     type: 'line', data: [], showSymbol: false, lineStyle: { color: '#8b5cf6', width: 2.5 }, itemStyle: { color: '#8b5cf6' } },
+                { name: 'Henia L3',     type: 'line', data: [], showSymbol: false, lineStyle: { color: '#10b981', width: 2.5 }, itemStyle: { color: '#10b981' } },
+                { name: 'Suma zużycia', type: 'line', data: [], showSymbol: false, lineStyle: { color: '#ef4444', width: 2.5, type: 'dashed' }, itemStyle: { color: '#ef4444' } }
+            ]
+        };
+
+        chart.setOption(option);
+
+        setTimeout(function() { chart.resize(); }, 300);
+        window.addEventListener('resize', function() { if (chart) chart.resize(); });
+
+        setTimeout(sendRange, 400);
+    }
+
+    function loadData(data) {
+        if (!data || !data.length || !chart) return;
+        const slice = data.slice(-MAX_POINTS);
+        const times = [];
+        const s0 = [], s1 = [], s2 = [], s3 = [], s4 = [];
+        slice.forEach(function(p) {
+            const sum = (p.l1_w || 0) + (p.l2_w || 0) + (p.l3_w || 0);
+            times.push(p.time);
+            s0.push(Math.round(p.pv_w || 0));
+            s1.push(Math.round(p.l1_w || 0));
+            s2.push(Math.round(p.l2_w || 0));
+            s3.push(Math.round(p.l3_w || 0));
+            s4.push(Math.round(sum));
+        });
+        option.xAxis.data = times;
+        option.series[0].data = s0;
+        option.series[1].data = s1;
+        option.series[2].data = s2;
+        option.series[3].data = s3;
+        option.series[4].data = s4;
+        chart.setOption(option);
+    }
+
+    initDateInputs();
+    loadECharts();
+
+    document.getElementById('pv-send').addEventListener('click', sendRange);
+})();
+</script>
+{% endblock %}

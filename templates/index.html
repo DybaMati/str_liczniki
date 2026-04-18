@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block content %}
+<h1 style="font-weight:600;font-size:1.25rem;margin:0 0 8px">Dashboard energii</h1>
+<p style="color:#aaa;margin:0 0 16px;max-width:52ch">
+  Trzy widoki: bieżąca moc z bazy, wykres w czasie (PV + trzy obwody + suma), oraz różnica odczytów liczników kWh między datami.
+</p>
+<ul style="line-height:1.8;margin:0;padding-left:1.2rem;color:#ccc">
+  <li><a href="/live">Na żywo</a> — ostatni rekord mocy (W)</li>
+  <li><a href="/chart">Wykres mocy</a> — zakres dat jak w Node-RED</li>
+  <li><a href="/meters">Zużycie kWh</a> — na podstawie skumulowanych odczytów liczników</li>
+</ul>
+{% endblock %}

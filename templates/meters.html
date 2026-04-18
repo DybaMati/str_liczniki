@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% block content %}
+<style>
+.pv-range{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:14px}
+.pv-range label{color:#ccc;font-size:13px}
+.pv-range input{background:#1e1e1e;border:1px solid #444;color:#fff;padding:4px 8px;border-radius:4px;font-size:13px}
+.pv-range button{background:#3b82f6;color:#fff;border:none;padding:5px 14px;border-radius:4px;cursor:pointer;font-size:13px}
+.pv-range button:hover{background:#2563eb}
+table{border-collapse:collapse;width:100%;max-width:560px;margin-top:8px}
+th,td{border:1px solid #333;padding:8px 10px;text-align:left}
+th{color:#aaa;font-weight:500;font-size:13px}
+td{font-size:15px}
+.num{text-align:right;font-variant-numeric:tabular-nums}
+</style>
+
+<h1 style="font-weight:600;font-size:1.2rem;margin:0 0 8px">Zużycie liczników (kWh)</h1>
+<p style="color:#888;font-size:14px;margin:0 0 12px;max-width:60ch">
+  Różnica skumulowanych odczytów: ostatni odczyt ≤ koniec zakresu minus ostatni odczyt &lt; początek zakresu (dla każdego <code>meter_id</code> w tabeli liczników).
+</p>
+
+<div class="pv-range">
+  <label>Od:</label>
+  <input type="date" id="m-from" />
+  <label>Do:</label>
+  <input type="date" id="m-to" />
+  <button type="button" id="m-send">Oblicz</button>
+  <span id="m-status" style="color:#888;font-size:13px"></span>
+</div>
+
+<table>
+  <thead>
+    <tr><th>Licznik</th><th>ID</th><th class="num">kWh w zakresie</th></tr>
+  </thead>
+  <tbody id="m-body">
+    <tr><td colspan="3" style="color:#888">Wybierz zakres i kliknij Oblicz</td></tr>
+  </tbody>
+</table>
+{% endblock %}
+{% block scripts %}
+<script>
+function todayStr() {
+  return new Date().toISOString().slice(0, 10);
+}
+function initDates() {
+  document.getElementById('m-from').value = todayStr();
+  document.getElementById('m-to').value = todayStr();
+}
+async function loadMeters() {
+  const from = document.getElementById('m-from').value;
+  const to = document.getElementById('m-to').value;
+  const status = document.getElementById('m-status');
+  const body = document.getElementById('m-body');
+  if (!from || !to) return;
+  status.textContent = 'Ładowanie…';
+  try {
+    const r = await fetch('/api/meters-delta?from=' + encodeURIComponent(from) + '&to=' + encodeURIComponent(to));
+    const j = await r.json();
+    if (!j.ok || !j.meters) {
+      body.innerHTML = '<tr><td colspan="3" style="color:#f87171">Brak danych</td></tr>';
+      status.textContent = '';
+      return;
+    }
+    body.innerHTML = '';
+    j.meters.forEach(function(m) {
+      const tr = document.createElement('tr');
+      tr.innerHTML = '<td>' + (m.label || '') + '</td><td>' + (m.meter_id || '') + '</td><td class="num">' + (Math.round(m.kwh * 1000) / 1000) + '</td>';
+      body.appendChild(tr);
+    });
+    status.textContent = 'Zakres: ' + j.from + ' — ' + j.to;
+  } catch (e) {
+    status.textContent = 'Błąd: ' + e;
+    body.innerHTML = '<tr><td colspan="3" style="color:#f87171">Błąd sieci</td></tr>';
+  }
+}
+initDates();
+document.getElementById('m-send').addEventListener('click', loadMeters);
+</script>
+{% endblock %}
