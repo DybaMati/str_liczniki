@@ -105,15 +105,16 @@ function fmtV(n){return (n==null||Number.isNaN(n))?'-':(Math.round(n*10)/10).toF
 function fmtA(n){return (n==null||Number.isNaN(n))?'-':(Math.round(n*10)/10).toFixed(1)+' A';}
 function fmtKOdo(n){
   if(n==null||Number.isNaN(n)) return '<span class="kwh-odo">-</span>';
-  var s=(Math.round(n*10)/10).toFixed(1).replace('.',',');
+  var s=(Math.round(n*100)/100).toFixed(2).replace('.',',');
   var parts=s.split(',');
   var leftRaw=parts[0]||'0';
   var left=leftRaw.length < 5 ? leftRaw.padStart(5,'0') : leftRaw;
-  var right=(parts[1]||'0').charAt(0);
+  var right=(parts[1]||'00');
   var h='<span class="kwh-odo">';
   for(var i=0;i<left.length;i++){ h += '<span class="cell">'+left.charAt(i)+'</span>'; }
   h += '<span class="sep">,</span>';
-  h += '<span class="cell dec">'+right+'</span>';
+  h += '<span class="cell dec">'+right.charAt(0)+'</span>';
+  h += '<span class="cell dec">'+right.charAt(1)+'</span>';
   h += '<span class="unit">kWh</span>';
   h += '</span>';
   return h;
