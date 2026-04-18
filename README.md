@@ -4,17 +4,25 @@ Dashboard odczytu: **PV** z tabeli `sofar_data`, mocy **L1–L3** z `licznik_pom
 
 ## Wymagania
 
-- Python 3.11+
+- Python 3.9+
 - MySQL z tabelami zgodnymi ze schematem (patrz `app/str_data.py`)
 
 ## Instalacja
 
 ```bash
 pip install -r requirements.txt
-copy .env.example .env
+cp .env.example .env
 ```
 
-W pliku `.env` ustaw `DATABASE_URL` i ewentualnie port. **Nie commituj `.env`** (jest w `.gitignore`).
+Domyślnie aplikacja łączy się z **MySQL** (`10.10.0.21`, baza `scada` — patrz `app/settings.py`). W `.env` możesz nadpisać `DATABASE_URL` (inna baza, hasło). **Nie commituj `.env`**.
+
+## Demo SQLite (bez MySQL)
+
+```bash
+export DATABASE_URL=sqlite:///./pv_demo.db
+python3 -m app.init_demo_db
+python3 run.py
+```
 
 ## Uruchomienie
 
@@ -23,14 +31,6 @@ python run.py
 ```
 
 Domyślnie: `http://0.0.0.0:8765` — strony: `/live`, `/chart`, `/meters`.
-
-## Demo SQLite (bez MySQL)
-
-```bash
-python -m app.init_demo_db
-# DATABASE_URL=sqlite:///./pv_demo.db w .env
-python run.py
-```
 
 ## Schemat bazy (MySQL)
 
