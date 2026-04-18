@@ -5,7 +5,7 @@ Liczniki: 7=Tomek, 8=Lonia, 9=Henia.
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any
+from typing import Any, Dict, List, Optional, Tuple
 
 from sqlalchemy import text
 
@@ -13,7 +13,7 @@ from .db import fetch_all, fetch_one
 from .settings import get_settings
 
 
-def _ids() -> tuple[int, int, int]:
+def _ids() -> Tuple[int, int, int]:
     s = get_settings()
     return (s.licznik_tomek_id, s.licznik_lonia_id, s.licznik_henia_id)
 
@@ -45,14 +45,14 @@ def _to_dt(val: object) -> datetime:
     raise TypeError(f"nie da się sparsować czasu: {val!r}")
 
 
-def _range_boundaries(date_from: str, date_to: str) -> dict[str, str]:
+def _range_boundaries(date_from: str, date_to: str) -> Dict[str, str]:
     return {
         "ts_from": f"{date_from} 00:00:01",
         "ts_to": f"{date_to} 23:59:59",
     }
 
 
-def fetch_live() -> dict[str, Any] | None:
+def fetch_live() -> Optional[Dict[str, Any]]:
     """Ostatni pomiar PV (sofar) oraz ostatni na każdym liczniku."""
     pv = fetch_one(
         text(
@@ -79,7 +79,7 @@ def fetch_live() -> dict[str, Any] | None:
     m3 = fetch_one(q, {"lid": id3})
     if not pv and not (m1 or m2 or m3):
         return None
-    times: list[datetime] = []
+    times: List[datetime] = []
     if pv and pv.get("ts"):
         times.append(_to_dt(pv["ts"]))
     for m in (m1, m2, m3):
@@ -95,7 +95,7 @@ def fetch_live() -> dict[str, Any] | None:
     }
 
 
-def _last_before(table: str, ts_col: str, val_col: str, before_ts: str) -> float | None:
+def _last_before(table: str, ts_col: str, val_col: str, before_ts: str) -> Optional[float]:
     row = fetch_one(
         text(
             f"""
@@ -113,7 +113,7 @@ def _last_before(table: str, ts_col: str, val_col: str, before_ts: str) -> float
     return float(row["v"])
 
 
-def _last_meter_before(licznik_id: int, before_ts: str) -> float | None:
+def _last_meter_before(licznik_id: int, before_ts: str) -> Optional[float]:
     row = fetch_one(
         text(
             """
@@ -131,7 +131,7 @@ def _last_meter_before(licznik_id: int, before_ts: str) -> float | None:
     return float(row["v"])
 
 
-def fetch_history_merged(date_from: str, date_to: str) -> list[dict[str, Any]]:
+def fetch_history_merged(date_from: str, date_to: str) -> List[Dict[str, Any]]:
     p = _range_boundaries(date_from, date_to)
     ts_start = p["ts_from"]
     id1, id2, id3 = _ids()
@@ -172,7 +172,7 @@ def fetch_history_merged(date_from: str, date_to: str) -> list[dict[str, Any]]:
         "l3_w": init_l3 if init_l3 is not None else 0.0,
     }
 
-    events: dict[datetime, dict[str, float]] = {}
+    events: Dict[datetime, Dict[str, float]] = {}
     for r in pv_rows:
         ts = _to_dt(r["ts"])
         if ts not in events:
@@ -192,7 +192,7 @@ def fetch_history_merged(date_from: str, date_to: str) -> list[dict[str, Any]]:
         elif lid == id3:
             events[ts]["l3_w"] = v
 
-    out: list[dict[str, Any]] = []
+    out: List[Dict[str, Any]] = []
     for ts in sorted(events.keys()):
         ev = events[ts]
         if "pv_w" in ev:
@@ -236,7 +236,7 @@ def stmt_meters_kwh_delta():
     )
 
 
-def fetch_meters_delta(date_from: str, date_to: str) -> list[dict[str, Any]]:
+def fetch_meters_delta(date_from: str, date_to: str) -> List[Dict[str, Any]]:
     p = _range_boundaries(date_from, date_to)
     return fetch_all(
         stmt_meters_kwh_delta(),

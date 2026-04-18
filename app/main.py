@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from datetime import datetime
 from pathlib import Path
+from typing import Dict
 
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse, JSONResponse
@@ -29,7 +30,7 @@ METER_LABELS_DEFAULT = {
 }
 
 
-def _meter_labels() -> dict[str, str]:
+def _meter_labels() -> Dict[str, str]:
     raw = get_settings().meter_labels_json
     if not raw:
         return METER_LABELS_DEFAULT

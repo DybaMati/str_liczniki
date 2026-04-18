@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 from functools import lru_cache
 from pathlib import Path
+from typing import Optional
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -41,12 +42,12 @@ class Settings(BaseSettings):
     col_meter_kwh: str = "kwh_total"
 
     # JSON: {"l1":"Tomek L1","l2":"Lonia L2"} — opcjonalnie nadpisuje domyślne nazwy liczników
-    meter_labels_json: str | None = None
+    meter_labels_json: Optional[str] = None
 
     # Opcjonalnie: pełne SQL zamiast budowania z powyższych (multiline w .env jest niewygodne — użyj pliku)
-    sql_live_file: str | None = None
-    sql_history_file: str | None = None
-    sql_meters_delta_file: str | None = None
+    sql_live_file: Optional[str] = None
+    sql_history_file: Optional[str] = None
+    sql_meters_delta_file: Optional[str] = None
 
 
 @lru_cache
@@ -54,7 +55,7 @@ def get_settings() -> Settings:
     return Settings()
 
 
-def read_sql_file(path: str | None, root: str) -> str | None:
+def read_sql_file(path: Optional[str], root: str) -> Optional[str]:
     if not path:
         return None
     full = path if os.path.isabs(path) else os.path.join(root, path)

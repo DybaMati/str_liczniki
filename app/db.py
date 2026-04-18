@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from contextlib import contextmanager
-from typing import Any, Iterator, Mapping
+from typing import Any, Dict, Iterator, List, Mapping, Optional
 
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine import Connection, Engine
@@ -23,7 +23,7 @@ def get_engine() -> Engine:
     )
 
 
-_engine: Engine | None = None
+_engine: Optional[Engine] = None
 
 
 def engine() -> Engine:
@@ -44,19 +44,19 @@ def connect() -> Iterator[Connection]:
         yield conn
 
 
-def row_to_dict(row: Any) -> dict[str, Any]:
+def row_to_dict(row: Any) -> Dict[str, Any]:
     m = row._mapping
     return dict(m)
 
 
-def fetch_one(sql: str | Any, params: Mapping[str, Any] | None = None) -> dict[str, Any] | None:
+def fetch_one(sql: Any, params: Optional[Mapping[str, Any]] = None) -> Optional[Dict[str, Any]]:
     params = params or {}
     with connect() as conn:
         r = conn.execute(sql if isinstance(sql, TextClause) else text(str(sql)), params).mappings().first()
     return dict(r) if r else None
 
 
-def fetch_all(sql: str | Any, params: Mapping[str, Any] | None = None) -> list[dict[str, Any]]:
+def fetch_all(sql: Any, params: Optional[Mapping[str, Any]] = None) -> List[Dict[str, Any]]:
     params = params or {}
     with connect() as conn:
         rows = conn.execute(sql if isinstance(sql, TextClause) else text(str(sql)), params).mappings().all()
