@@ -23,7 +23,7 @@ class Settings(BaseSettings):
     # Domyślnie MySQL (SCADA); nadpisz w .env — np. inna nazwa bazy lub hasło.
     # SQLite tylko do lokalnego demo: DATABASE_URL=sqlite:///./pv_demo.db
     database_url: str = (
-        "mysql+pymysql://SCADA:12345678@10.10.0.21:3306/scada?charset=utf8mb4"
+        "mysql+pymysql://SCADA:12345678@10.10.0.21:3306/SOFAR_testy?charset=utf8mb4"
     )
 
     # ID liczników (schemat str_liczniki / licznik_pomiary, licznik_energia)

@@ -14,12 +14,12 @@ pip install -r requirements.txt
 cp .env.example .env
 ```
 
-Domyślnie aplikacja łączy się z **MySQL** (`10.10.0.21`, baza `scada` — patrz `app/settings.py`). W `.env` możesz nadpisać `DATABASE_URL` (inna baza, hasło). **Nie commituj `.env`**.
+Domyślnie aplikacja łączy się z **MySQL** (`10.10.0.21`, baza **`SOFAR_testy`** — patrz `app/settings.py`). W `.env` możesz nadpisać `DATABASE_URL` (inna baza, hasło). **Nie commituj `.env`**.
 
-**Błąd `Unknown database 'scada'`:** na serwerze MySQL musi istnieć baza o nazwie z URL (domyślnie `scada`), albo zmień ostatni segment w `DATABASE_URL` na **istniejącą** bazę, gdzie są tabele `sofar_data`, `licznik_pomiary`, `licznik_energia`:
+**Błąd `Unknown database`:** na serwerze MySQL musi istnieć baza o nazwie z URL (domyślnie `SOFAR_testy`), albo zmień ostatni segment w `DATABASE_URL` na **istniejącą** bazę z tabelami `sofar_data`, `licznik_pomiary`, `licznik_energia`:
 
 ```sql
-CREATE DATABASE IF NOT EXISTS scada CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+CREATE DATABASE IF NOT EXISTS SOFAR_testy CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 ```
 
 **Logi:** przy starcie w konsoli i w pliku `logs/app.log` widać, czy test `SELECT 1` do bazy przeszedł; przy błędzie są podpowiedzi (np. brak bazy, hasło, sieć).
