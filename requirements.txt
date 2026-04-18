@@ -1,5 +1,7 @@
 fastapi>=0.115.0
-uvicorn[standard]>=0.32.0
+# Używamy zwykłego uvicorn (bez [standard]), żeby na ARM/Pi nie kompilować httptools/uvloop.
+# Pełne opcje: uvicorn[standard] + w systemie: python3-dev build-essential
+uvicorn>=0.32.0
 jinja2>=3.1.4
 sqlalchemy>=2.0.36
 python-dotenv>=1.0.1
