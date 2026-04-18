@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import json
 import logging
@@ -135,6 +135,10 @@ async def api_live():
     return {
         "ok": True,
         "time": t,
+        "pv_ts": _fmt_ts(row.get("pv_ts")),
+        "l1_ts": _fmt_ts(row.get("l1_ts")),
+        "l2_ts": _fmt_ts(row.get("l2_ts")),
+        "l3_ts": _fmt_ts(row.get("l3_ts")),
         "pv_w": float(row.get("pv_w") or 0),
         "l1_w": float(row.get("l1_w") or 0),
         "l2_w": float(row.get("l2_w") or 0),

@@ -1,4 +1,4 @@
-"""
+﻿"""
 Odczyty pod schemat MySQL: sofar_data (PV), licznik_pomiary, licznik_energia.
 Liczniki: 7=Tomek, 8=Lonia, 9=Henia.
 """
@@ -88,6 +88,10 @@ def fetch_live() -> Optional[Dict[str, Any]]:
     t_show = max(times) if times else datetime.now()
     return {
         "ts": t_show,
+        "pv_ts": _fmt_ts(pv.get("ts")) if pv and pv.get("ts") else "",
+        "l1_ts": _fmt_ts(m1.get("ts")) if m1 and m1.get("ts") else "",
+        "l2_ts": _fmt_ts(m2.get("ts")) if m2 and m2.get("ts") else "",
+        "l3_ts": _fmt_ts(m3.get("ts")) if m3 and m3.get("ts") else "",
         "pv_w": float(pv["pv_w"]) if pv and pv.get("pv_w") is not None else 0.0,
         "l1_w": float(m1["w"]) if m1 and m1.get("w") is not None else 0.0,
         "l2_w": float(m2["w"]) if m2 and m2.get("w") is not None else 0.0,
