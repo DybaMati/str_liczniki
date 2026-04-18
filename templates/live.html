@@ -17,7 +17,7 @@
 .meter-row span{font-size:15px;font-variant-numeric:tabular-nums}
 .spark-wrap{margin-top:8px}
 .spark-wrap b{display:block;font-size:12px;color:#a9a9a9;font-weight:500;margin-bottom:4px}
-.spark{width:100%;height:48px;background:#161616;border:1px solid #2b2b2b;border-radius:6px}
+.spark{width:100%;height:120px;background:#161616;border:1px solid #2b2b2b;border-radius:6px}
 
 .lastbar{margin-top:12px;background:rgba(255,255,255,0.05);border:1px solid #333;border-radius:8px;padding:10px 12px}
 .lastbar-title{font-size:12px;color:#aaa;margin-bottom:6px}
@@ -56,25 +56,54 @@ function fmtV(n){return (n==null||Number.isNaN(n))?'-':(Math.round(n*10)/10).toF
 function fmtA(n){return (n==null||Number.isNaN(n))?'-':(Math.round(n*10)/10).toFixed(1)+' A';}
 function fmtK(n){return (n==null||Number.isNaN(n))?'-':(Math.round(n*10)/10).toFixed(1)+' kWh';}
 function fmtTs(s){return s||'-';}
-
-function drawSparkline(svg, values){
-  if(!svg) return;
-  const w=svg.clientWidth||260, h=48;
-  svg.setAttribute('viewBox', '0 0 '+w+' '+h);
-  if(!values||!values.length){svg.innerHTML=''; return;}
-  const min=Math.min.apply(null,values), max=Math.max.apply(null,values);
-  const span=(max-min)||1;
-  const points=values.map(function(v,i){
-    const x=(i/(values.length-1||1))*w;
-    const y=h-4-((v-min)/span)*(h-8);
-    return x.toFixed(1)+','+y.toFixed(1);
-  }).join(' ');
-  svg.innerHTML='<polyline fill="none" stroke="#3b82f6" stroke-width="2" points="'+points+'" />';
+function fmtTsShort(s){
+  if(!s) return '-';
+  var m=String(s).match(/(\d{2}:\d{2}:\d{2})$/);
+  return m ? m[1] : s;
 }
 
-function renderMeters(cards){
+let _echartsLoaded = false;
+let _chartRefs = [];
+function ensureEcharts(){
+  return new Promise(function(resolve){
+    if(window.echarts){ _echartsLoaded=true; resolve(); return; }
+    if(_echartsLoaded){ resolve(); return; }
+    var s=document.createElement('script');
+    s.src='https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js';
+    s.onload=function(){ _echartsLoaded=true; resolve(); };
+    document.head.appendChild(s);
+  });
+}
+function drawSparkline(container, series, yMax){
+  if(!container || !window.echarts) return;
+  var chart = echarts.getInstanceByDom(container) || echarts.init(container);
+  var x = (series||[]).map(function(p){ return fmtTsShort(p.ts); });
+  var y = (series||[]).map(function(p){ return Math.round((p.w||0)*10)/10; });
+  chart.setOption({
+    animation: false,
+    grid: {left: 35, right: 8, top: 8, bottom: 22},
+    tooltip: {
+      trigger: 'axis',
+      axisPointer: { type: 'line' },
+      formatter: function(params){
+        if(!params || !params.length) return '';
+        var p=params[0];
+        var i=p.dataIndex;
+        var ts=(series[i] && series[i].ts) ? series[i].ts : p.axisValue;
+        return '<b>'+ts+'</b><br/>Wat: <b>'+p.value+' W</b>';
+      }
+    },
+    xAxis: { type: 'category', data: x, axisLabel: {color:'#8f8f8f', fontSize: 10, interval: 'auto'}, boundaryGap: false },
+    yAxis: { type: 'value', min: 0, max: yMax || 500, axisLabel: {color:'#8f8f8f', fontSize: 10} },
+    series: [{ type:'line', data:y, showSymbol:false, smooth:true, lineStyle:{width:2,color:'#3b82f6'}, areaStyle:{opacity:0.08,color:'#3b82f6'} }]
+  });
+  _chartRefs.push(chart);
+}
+
+function renderMeters(cards, yMax){
   const box=document.getElementById('meter-grid');
   box.innerHTML='';
+  _chartRefs = [];
   cards.forEach(function(c,idx){
     const id='spark-'+idx;
     const el=document.createElement('article');
@@ -90,7 +119,7 @@ function renderMeters(cards){
       '  <div class="meter-row"><b>ile kWh</b><span>'+fmtK(c.kwh)+'</span></div>'+
       '</div>';
     box.appendChild(el);
-    drawSparkline(el.querySelector('#'+id), c.wat_series||[]);
+    drawSparkline(el.querySelector('#'+id), c.wat_series||[], yMax);
   });
 }
 
@@ -109,11 +138,13 @@ async function tick(){
     document.getElementById('last-l1').textContent=fmtTs(j.l1_ts);
     document.getElementById('last-l2').textContent=fmtTs(j.l2_ts);
     document.getElementById('last-l3').textContent=fmtTs(j.l3_ts);
-    renderMeters(j.meter_cards||[]);
+    await ensureEcharts();
+    renderMeters(j.meter_cards||[], j.wat_y_max||500);
   }catch(e){st.textContent='Blad sieci: '+e;}
 }
 
 tick();
 setInterval(tick,20000);
+window.addEventListener('resize', function(){ _chartRefs.forEach(function(c){ try{c.resize();}catch(e){} }); });
 </script>
 {% endblock %}

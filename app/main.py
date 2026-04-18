@@ -144,6 +144,7 @@ async def api_live():
         "l2_w": float(row.get("l2_w") or 0),
         "l3_w": float(row.get("l3_w") or 0),
         "meter_cards": row.get("meter_cards") or [],
+        "wat_y_max": float(row.get("wat_y_max") or 500),
     }
 
 

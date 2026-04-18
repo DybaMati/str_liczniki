@@ -5,6 +5,7 @@ Liczniki: 7=Tomek, 8=Lonia, 9=Henia.
 from __future__ import annotations
 
 from datetime import datetime, timedelta
+from math import ceil
 from typing import Any, Dict, List, Optional, Tuple
 
 from sqlalchemy import text
@@ -52,23 +53,28 @@ def _range_boundaries(date_from: str, date_to: str) -> Dict[str, str]:
     }
 
 
-def _fetch_meter_watts_series(licznik_id: int, points: int = 24) -> List[float]:
+def _fetch_meter_watts_series(licznik_id: int) -> List[Dict[str, Any]]:
     rows = fetch_all(
         text(
             """
-            SELECT moc_w AS w
+            SELECT `timestamp` AS ts, moc_w AS w
             FROM licznik_pomiary
             WHERE licznik_id = :lid
-            ORDER BY `timestamp` DESC
-            LIMIT :lim
+              AND `timestamp` >= (NOW() - INTERVAL 8 HOUR)
+            ORDER BY `timestamp` ASC
             """
         ),
-        {"lid": licznik_id, "lim": points},
+        {"lid": licznik_id},
     )
-    # Query returns DESC; frontend sparkline expects left->right timeline.
-    vals = [float(r.get("w") or 0.0) for r in rows]
-    vals.reverse()
-    return vals
+    out: List[Dict[str, Any]] = []
+    for r in rows:
+        out.append(
+            {
+                "ts": _fmt_ts(r.get("ts")),
+                "w": float(r.get("w") or 0.0),
+            }
+        )
+    return out
 
 
 def _fetch_meter_live_card(licznik_id: int, label: str) -> Dict[str, Any]:
@@ -148,6 +154,14 @@ def fetch_live() -> Optional[Dict[str, Any]]:
         _fetch_meter_live_card(id2, "Lonia"),
         _fetch_meter_live_card(id3, "Henia"),
     ]
+    max_w = 0.0
+    for card in meter_cards:
+        for pt in card.get("wat_series", []):
+            w = float(pt.get("w") or 0.0)
+            if w > max_w:
+                max_w = w
+    # Wspolna skala Y dla porownywalnosci (krok 500W).
+    wat_y_max = max(500.0, float(ceil(max_w / 500.0) * 500.0))
     return {
         "ts": t_show,
         "pv_ts": _fmt_ts(pv.get("ts")) if pv and pv.get("ts") else "",
@@ -159,6 +173,7 @@ def fetch_live() -> Optional[Dict[str, Any]]:
         "l2_w": float(m2["w"]) if m2 and m2.get("w") is not None else 0.0,
         "l3_w": float(m3["w"]) if m3 and m3.get("w") is not None else 0.0,
         "meter_cards": meter_cards,
+        "wat_y_max": wat_y_max,
     }
 
 
