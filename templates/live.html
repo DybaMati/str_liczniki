@@ -1,4 +1,10 @@
 ﻿{% extends "base.html" %}
+{% block head %}
+<style>
+/* Szerszy uklad na /live — wykresy na calej szerokosci karty */
+main { max-width: min(100%, 1600px); }
+</style>
+{% endblock %}
 {% block content %}
 <style>
 .pv-top{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;margin-bottom:12px}
@@ -12,8 +18,8 @@
 .pv-meta{color:#888;font-size:13px;margin:0 0 10px}
 .pv-loading{color:#93c5fd;font-size:13px;margin:0 0 8px}
 
-.meter-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px;margin-top:10px}
-.meter-card{background:rgba(255,255,255,0.06);border:1px solid #333;border-radius:10px;padding:12px}
+.meter-grid{display:grid;grid-template-columns:1fr;gap:16px;margin-top:10px;width:100%}
+.meter-card{background:rgba(255,255,255,0.06);border:1px solid #333;border-radius:10px;padding:12px;width:100%;max-width:100%}
 .meter-head{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:10px}
 .meter-title{font-size:16px;font-weight:600;margin:0}
 .meter-upd{font-size:11px;color:#8d8d8d;text-align:right;line-height:1.2}
@@ -25,7 +31,14 @@
 .meter-row span{font-size:15px;font-variant-numeric:tabular-nums}
 .spark-wrap{margin-top:8px}
 .spark-wrap b{display:block;font-size:12px;color:#a9a9a9;font-weight:500;margin-bottom:4px}
-.spark{width:100%;height:120px;min-height:120px;background:#161616;border:1px solid #2b2b2b;border-radius:6px;display:block}
+.spark{width:100%;height:240px;min-height:240px;background:#161616;border:1px solid #2b2b2b;border-radius:6px;display:block}
+.meter-skel .sk-line{height:14px;border-radius:4px;background:linear-gradient(90deg,#2a2a2a 0%,#3a3a3a 50%,#2a2a2a 100%);background-size:200% 100%;animation:sk-sh 1.2s ease-in-out infinite}
+.meter-skel .sk-line.w40{width:40%}
+.meter-skel .sk-line.w60{width:60%}
+.meter-skel .sk-line.w80{width:80%}
+.meter-skel .sk-chart{height:240px;border-radius:6px;background:linear-gradient(90deg,#1c1c1c 0%,#252525 50%,#1c1c1c 100%);background-size:200% 100%;animation:sk-sh 1.2s ease-in-out infinite}
+.meter-skel .sk-badge{font-size:11px;color:#6b7280;margin-top:8px}
+@keyframes sk-sh{0%{background-position:200% 0}100%{background-position:-200% 0}}
 </style>
 
 <h1 style="font-weight:600;font-size:1.2rem;margin:0 0 10px">Odczyt na zywo</h1>
@@ -47,7 +60,35 @@
   </div>
 </div>
 
-<div class="meter-grid" id="meter-grid"></div>
+<div class="meter-grid" id="meter-grid">
+  <article class="meter-card meter-skel" aria-busy="true">
+    <div class="meter-head"><h3 class="meter-title">Tomek</h3></div>
+    <div class="meter-rows">
+      <div class="sk-line w60"></div>
+      <div class="sk-line w80" style="margin-top:8px"></div>
+      <div class="sk-chart" style="margin-top:12px"></div>
+      <p class="sk-badge">Ladowanie danych licznika...</p>
+    </div>
+  </article>
+  <article class="meter-card meter-skel" aria-busy="true">
+    <div class="meter-head"><h3 class="meter-title">Lonia</h3></div>
+    <div class="meter-rows">
+      <div class="sk-line w60"></div>
+      <div class="sk-line w80" style="margin-top:8px"></div>
+      <div class="sk-chart" style="margin-top:12px"></div>
+      <p class="sk-badge">Ladowanie danych licznika...</p>
+    </div>
+  </article>
+  <article class="meter-card meter-skel" aria-busy="true">
+    <div class="meter-head"><h3 class="meter-title">Henia</h3></div>
+    <div class="meter-rows">
+      <div class="sk-line w60"></div>
+      <div class="sk-line w80" style="margin-top:8px"></div>
+      <div class="sk-chart" style="margin-top:12px"></div>
+      <p class="sk-badge">Ladowanie danych licznika...</p>
+    </div>
+  </article>
+</div>
 {% endblock %}
 {% block scripts %}
 <script>
@@ -91,16 +132,25 @@ function drawSparkline(container, series, yMax){
   var y = (series||[]).map(function(p){ return Math.round((p.w||0)*10)/10; });
   chart.setOption({
     animation: false,
-    grid: {left: 35, right: 8, top: 8, bottom: 22},
+    grid: {left: 44, right: 14, top: 10, bottom: 28},
     tooltip: {
       trigger: 'axis',
-      axisPointer: { type: 'line' },
+      confine: true,
+      backgroundColor: 'rgba(22,22,22,0.96)',
+      borderColor: '#404040',
+      borderWidth: 1,
+      padding: [6, 10],
+      textStyle: { color: '#e5e5e5', fontSize: 12 },
+      extraCssText: 'border-radius:6px;box-shadow:0 4px 12px rgba(0,0,0,.45)',
+      axisPointer: { type: 'line', lineStyle: { color: '#555', width: 1 } },
       formatter: function(params){
         if(!params || !params.length) return '';
         var p=params[0];
         var i=p.dataIndex;
-        var ts=(series[i] && series[i].ts) ? series[i].ts : p.axisValue;
-        return '<b>'+ts+'</b><br/>Wat: <b>'+p.value+' W</b>';
+        var raw=(series[i] && series[i].ts) ? series[i].ts : '';
+        var tline=fmtTsShort(raw || p.axisValue);
+        var v=p.value;
+        return '<div style="text-align:center;line-height:1.3">'+tline+'</div><div style="text-align:center;font-weight:600;margin-top:3px;font-variant-numeric:tabular-nums">'+v+' W</div>';
       }
     },
     xAxis: { type: 'category', data: x, axisLabel: {color:'#8f8f8f', fontSize: 10, interval: 'auto'}, boundaryGap: false },
@@ -146,6 +196,7 @@ async function tick(){
     if(!j.ok){
       if(loadingEl) loadingEl.style.display='none';
       st.textContent=j.error||'Brak danych w bazie';
+      document.getElementById('meter-grid').innerHTML='<p class="err">'+st.textContent+'</p>';
       return;
     }
     if(loadingEl) loadingEl.style.display='none';
@@ -162,6 +213,8 @@ async function tick(){
   }catch(e){
     if(loadingEl) loadingEl.style.display='none';
     st.textContent='Blad sieci: '+e;
+    var mg=document.getElementById('meter-grid');
+    if(mg) mg.innerHTML='<p class="err">Nie udalo sie pobrac danych licznikow. '+e+'</p>';
   }
 }
 
