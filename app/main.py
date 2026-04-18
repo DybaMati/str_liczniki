@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import logging
 from contextlib import asynccontextmanager
-from datetime import datetime
+from datetime import date, datetime
 from pathlib import Path
 from typing import Dict
 
@@ -66,6 +66,18 @@ def _meter_labels() -> Dict[str, str]:
     except json.JSONDecodeError:
         pass
     return METER_LABELS_DEFAULT
+
+
+def _parse_date_ymd(s: str) -> date:
+    return datetime.strptime(s, "%Y-%m-%d").date()
+
+
+def _validate_date_range_not_inverted(date_from: str, date_to: str) -> None:
+    if _parse_date_ymd(date_to) < _parse_date_ymd(date_from):
+        raise HTTPException(
+            status_code=400,
+            detail="Data końcowa nie może być wcześniejsza niż początkowa.",
+        )
 
 
 def _fmt_ts(val: object) -> str:
@@ -140,6 +152,7 @@ async def api_history(
         datetime.strptime(date_to, "%Y-%m-%d")
     except ValueError:
         raise HTTPException(status_code=400, detail="from/to muszą być w formacie YYYY-MM-DD")
+    _validate_date_range_not_inverted(date_from, date_to)
     out = str_data.fetch_history_merged(date_from, date_to)
     return {"ok": True, "data": out}
 
@@ -154,6 +167,7 @@ async def api_meters_delta(
         datetime.strptime(date_to, "%Y-%m-%d")
     except ValueError:
         raise HTTPException(status_code=400, detail="from/to muszą być w formacie YYYY-MM-DD")
+    _validate_date_range_not_inverted(date_from, date_to)
     rows = str_data.fetch_meters_delta(date_from, date_to)
     labels = _meter_labels()
     items = []

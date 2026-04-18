@@ -126,10 +126,24 @@ async function loadMeters() {
   const body = document.getElementById('m-body');
   const cards = document.getElementById('m-cards');
   if (!from || !to) return;
+  if (to < from) {
+    status.textContent = 'Data „Do” nie może być wcześniejsza niż „Od”.';
+    body.innerHTML = '<tr><td colspan="7" style="color:#fbbf24">Popraw zakres dat.</td></tr>';
+    cards.innerHTML = '';
+    return;
+  }
   status.textContent = 'Ładowanie…';
   try {
     const r = await fetch('/api/meters-delta?from=' + encodeURIComponent(from) + '&to=' + encodeURIComponent(to));
     const j = await r.json();
+    if (!r.ok) {
+      var d = j.detail;
+      var errTxt = typeof d === 'string' ? d : (Array.isArray(d) && d[0] && d[0].msg ? d[0].msg : 'Błąd zapytania');
+      status.textContent = errTxt;
+      body.innerHTML = '<tr><td colspan="7" style="color:#fbbf24">' + errTxt + '</td></tr>';
+      cards.innerHTML = '';
+      return;
+    }
     if (!j.ok || !j.meters) {
       body.innerHTML = '<tr><td colspan="7" style="color:#f87171">Brak danych</td></tr>';
       cards.innerHTML = '';

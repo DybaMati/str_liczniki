@@ -54,10 +54,20 @@
         const to   = document.getElementById('pv-to').value;
         const status = document.getElementById('pv-chart-status');
         if (!from || !to) return;
+        if (to < from) {
+            status.textContent = 'Data „Do” nie może być wcześniejsza niż „Od”.';
+            return;
+        }
         status.textContent = 'Ładowanie…';
         try {
             const r = await fetch('/api/history?from=' + encodeURIComponent(from) + '&to=' + encodeURIComponent(to));
             const msg = await r.json();
+            if (!r.ok) {
+                var d = msg.detail;
+                var errTxt = typeof d === 'string' ? d : (Array.isArray(d) && d[0] && d[0].msg ? d[0].msg : 'Błąd zapytania');
+                status.textContent = errTxt;
+                return;
+            }
             if (msg.ok && msg.data) {
                 loadData(msg.data);
                 status.textContent = msg.data.length + ' punktów';
