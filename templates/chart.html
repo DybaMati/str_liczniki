@@ -39,6 +39,24 @@
     let chart = null;
     let option = null;
     const MAX_POINTS = 1440;
+    /** ~8 etykiet na osi czasu: poczatek, koniec, 6 rownomiernie w srodku */
+    const X_AXIS_MAX_TICKS = 8;
+
+    function visibleTickIndexSet(len, maxTicks) {
+        if (len <= 0) return new Set();
+        if (len === 1) return new Set([0]);
+        var cap = Math.min(maxTicks, len);
+        if (len <= cap) {
+            var all = new Set();
+            for (var i = 0; i < len; i++) all.add(i);
+            return all;
+        }
+        var s = new Set();
+        for (var k = 0; k < cap; k++) {
+            s.add(Math.round(k * (len - 1) / (cap - 1)));
+        }
+        return s;
+    }
 
     function todayStr() {
         return new Date().toISOString().slice(0, 10);
@@ -93,7 +111,7 @@
                     color: '#ccc',
                     fontSize: small ? 9 : 11,
                     rotate: small ? 50 : 0,
-                    interval: small ? 'auto' : 0
+                    hideOverlap: true
                 }
             },
             grid: { left: 10, right: 10, top: small ? 52 : 45, bottom: small ? 95 : 80, containLabel: true }
@@ -128,7 +146,18 @@ r += p.seriesName + ': <b>' + Math.round(p.value) + ' W</b><br/>'; }); return r;
                 top: 8,
                 left: 'center'
             },
-            xAxis: { type: 'category', data: [], axisLabel: { color: '#ccc', fontSize: 11 } },
+            xAxis: {
+                type: 'category',
+                data: [],
+                axisLabel: {
+                    color: '#ccc',
+                    fontSize: 11,
+                    hideOverlap: true,
+                    interval: function(index) {
+                        return true;
+                    }
+                }
+            },
             yAxis: { type: 'value', name: 'W', nameTextStyle: { color: '#ccc' }, axisLabel: { color: '#ccc' } },
             dataZoom: [
                 { type: 'slider', bottom: 15, height: 25, start: 0, end: 100 },
@@ -166,6 +195,10 @@ r += p.seriesName + ': <b>' + Math.round(p.value) + ' W</b><br/>'; }); return r;
             s4.push(Math.round(sum));
         });
         option.xAxis.data = times;
+        var tickSet = visibleTickIndexSet(times.length, X_AXIS_MAX_TICKS);
+        option.xAxis.axisLabel.interval = function(index) {
+            return !tickSet.has(index);
+        };
         option.series[0].data = s0;
         option.series[1].data = s1;
         option.series[2].data = s2;
