@@ -38,7 +38,21 @@
 (function() {
     let chart = null;
     let option = null;
-    const MAX_POINTS = 1440;
+    /** Max. punktow na wykresie (wydajnosc); caly zakres dat — probkowanie rownomiernie od poczatku do konca (nie ostatnie N!) */
+    const MAX_CHART_POINTS = 6000;
+
+    function pickPointsEvenly(arr, maxLen) {
+        if (!arr || !arr.length) return [];
+        if (arr.length <= maxLen) return arr.slice();
+        var n = arr.length;
+        var idxSet = {};
+        for (var k = 0; k < maxLen; k++) {
+            var idx = Math.round(k * (n - 1) / (maxLen - 1));
+            idxSet[idx] = true;
+        }
+        var keys = Object.keys(idxSet).map(function(x) { return parseInt(x, 10); }).sort(function(a, b) { return a - b; });
+        return keys.map(function(i) { return arr[i]; });
+    }
     /** Maks. ~10 etykiet na osi czasu (rownomiernie: poczatek, koniec, srodek) */
     const X_AXIS_MAX_TICKS = 10;
     /** Utrzymywane przy resize — inaczej ECharts przywraca domyslne ~wszystkie etykiety */
@@ -103,8 +117,12 @@
                 return;
             }
             if (msg.ok && msg.data) {
-                loadData(msg.data);
-                status.textContent = msg.data.length + ' punktów';
+                var pr = loadData(msg.data);
+                if (pr && pr.raw > pr.plotted) {
+                    status.textContent = pr.raw + ' punktów (wykres: ' + pr.plotted + ', cały zakres dat)';
+                } else {
+                    status.textContent = (pr ? pr.raw : msg.data.length) + ' punktów';
+                }
             } else {
                 status.textContent = 'Brak danych';
             }
@@ -200,8 +218,8 @@ r += p.seriesName + ': <b>' + Math.round(p.value) + ' W</b><br/>'; }); return r;
     }
 
     function loadData(data) {
-        if (!data || !data.length || !chart) return;
-        const slice = data.slice(-MAX_POINTS);
+        if (!data || !data.length || !chart) return null;
+        var slice = pickPointsEvenly(data, MAX_CHART_POINTS);
         const times = [];
         const s0 = [], s1 = [], s2 = [], s3 = [], s4 = [];
         slice.forEach(function(p) {
@@ -223,6 +241,7 @@ r += p.seriesName + ': <b>' + Math.round(p.value) + ' W</b><br/>'; }); return r;
         option.series[4].data = s4;
         chart.setOption(option);
         chartResponsive();
+        return { raw: data.length, plotted: slice.length };
     }
 
     initDateInputs();
