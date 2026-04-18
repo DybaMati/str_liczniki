@@ -7,12 +7,16 @@ Przykład:
 """
 from __future__ import annotations
 
+from pathlib import Path
+
 import uvicorn
 
+from app.logutil import setup_logging
 from app.settings import get_settings
 
 
 def main() -> None:
+    setup_logging(Path(__file__).resolve().parent)
     s = get_settings()
     uvicorn.run("app.main:app", host=s.host, port=s.port, factory=False)
 
