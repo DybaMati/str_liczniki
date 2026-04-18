@@ -1,4 +1,4 @@
-{% extends "base.html" %}
+Ôªø{% extends "base.html" %}
 {% block content %}
 <style>
 .pv-header{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px}
@@ -21,90 +21,64 @@
 }
 </style>
 
-<h1 style="font-weight:600;font-size:1.2rem;margin:0 0 12px">Odczyt na øywo</h1>
-<p class="pv-meta" id="pv-status">£adowanieÖ</p>
+<h1 style="font-weight:600;font-size:1.2rem;margin:0 0 12px">Odczyt na zywo</h1>
+<p class="pv-meta" id="pv-status">Ladowanie...</p>
 
 <div class="pv-header">
   <div class="pv-card">
     <p class="pv-card-label">Czas odczytu</p>
-    <div class="pv-card-value pv-time-stack" id="pv-time-wrap"><p class="pv-d" id="pv-time-d">ó</p><p class="pv-t" id="pv-time-t"></p></div>
+    <div class="pv-card-value pv-time-stack" id="pv-time-wrap"><p class="pv-d" id="pv-time-d">-</p><p class="pv-t" id="pv-time-t"></p></div>
   </div>
-  <div class="pv-card">
-    <p class="pv-card-label">PV produkcja</p>
-    <p class="pv-card-value" id="pv-pv">ó</p>
-  </div>
-  <div class="pv-card">
-    <p class="pv-card-label">Tomek L1</p>
-    <p class="pv-card-value" id="pv-l1">ó</p>
-  </div>
-  <div class="pv-card">
-    <p class="pv-card-label">Lonia L2</p>
-    <p class="pv-card-value" id="pv-l2">ó</p>
-  </div>
-  <div class="pv-card">
-    <p class="pv-card-label">Henia L3</p>
-    <p class="pv-card-value" id="pv-l3">ó</p>
-  </div>
-  <div class="pv-card">
-    <p class="pv-card-label">Suma zuøycia</p>
-    <p class="pv-card-value" id="pv-sum">ó</p>
-  </div>
+  <div class="pv-card"><p class="pv-card-label">PV produkcja</p><p class="pv-card-value" id="pv-pv">-</p></div>
+  <div class="pv-card"><p class="pv-card-label">Tomek L1</p><p class="pv-card-value" id="pv-l1">-</p></div>
+  <div class="pv-card"><p class="pv-card-label">Lonia L2</p><p class="pv-card-value" id="pv-l2">-</p></div>
+  <div class="pv-card"><p class="pv-card-label">Henia L3</p><p class="pv-card-value" id="pv-l3">-</p></div>
+  <div class="pv-card"><p class="pv-card-label">Suma zuzycia</p><p class="pv-card-value" id="pv-sum">-</p></div>
 </div>
+
 <div class="pv-lastbar">
-  <div class="pv-lastbar-title">Ostatni pomiar ürÛd≥owy</div>
+  <div class="pv-lastbar-title">Ostatni pomiar zrodlowy</div>
   <div class="pv-lastbar-grid">
-    <div class="pv-last-item"><b>PV</b><span id="last-pv">ó</span></div>
-    <div class="pv-last-item"><b>Tomek L1</b><span id="last-l1">ó</span></div>
-    <div class="pv-last-item"><b>Lonia L2</b><span id="last-l2">ó</span></div>
-    <div class="pv-last-item"><b>Henia L3</b><span id="last-l3">ó</span></div>
+    <div class="pv-last-item"><b>PV</b><span id="last-pv">-</span></div>
+    <div class="pv-last-item"><b>Tomek L1</b><span id="last-l1">-</span></div>
+    <div class="pv-last-item"><b>Lonia L2</b><span id="last-l2">-</span></div>
+    <div class="pv-last-item"><b>Henia L3</b><span id="last-l3">-</span></div>
   </div>
 </div>
 {% endblock %}
 {% block scripts %}
 <script>
-function fmtW(n) {
-  if (n == null || Number.isNaN(n)) return 'ó';
-  return Math.round(n) + ' W';
+function fmtW(n){if(n==null||Number.isNaN(n)) return '-'; return Math.round(n)+' W';}
+function splitTimeForDisplay(s){
+  if(!s||s==='-') return {d:'-',t:''};
+  var m=String(s).match(/^(\d{4})-(\d{2})-(\d{2})[\sT](\d{2}:\d{2}:\d{2})/);
+  if(m) return {d:m[3]+'-'+m[2]+'-'+m[1], t:m[4]};
+  return {d:s,t:''};
 }
-function splitTimeForDisplay(s) {
-  if (!s || s === 'ó') return { d: 'ó', t: '' };
-  var m = String(s).match(/^(\d{4})-(\d{2})-(\d{2})[\sT](\d{2}:\d{2}:\d{2})/);
-  if (m) return { d: m[3] + '-' + m[2] + '-' + m[1], t: m[4] };
-  return { d: s, t: '' };
-}
-function tsStackText(s) {
-  var x = splitTimeForDisplay(s);
-  return x.t ? (x.d + ' ' + x.t) : x.d;
-}
-async function tick() {
-  const st = document.getElementById('pv-status');
-  try {
-    const r = await fetch('/api/live');
-    const j = await r.json();
-    if (!j.ok) {
-      st.textContent = j.error || 'Brak danych w bazie';
-      return;
-    }
-    st.textContent = 'èrÛd≥o: ostatni rekord z bazy (odúwieøanie co 20 s)';
-    var ts = splitTimeForDisplay(j.time || '');
-    document.getElementById('pv-time-d').textContent = ts.d;
-    document.getElementById('pv-time-t').textContent = ts.t;
-    document.getElementById('pv-pv').textContent = fmtW(j.pv_w);
-    document.getElementById('pv-l1').textContent = fmtW(j.l1_w);
-    document.getElementById('pv-l2').textContent = fmtW(j.l2_w);
-    document.getElementById('pv-l3').textContent = fmtW(j.l3_w);
-    const sum = (j.l1_w||0)+(j.l2_w||0)+(j.l3_w||0);
-    document.getElementById('pv-sum').textContent = fmtW(sum);
-    document.getElementById('last-pv').textContent = tsStackText(j.pv_ts || '');
-    document.getElementById('last-l1').textContent = tsStackText(j.l1_ts || '');
-    document.getElementById('last-l2').textContent = tsStackText(j.l2_ts || '');
-    document.getElementById('last-l3').textContent = tsStackText(j.l3_ts || '');
-  } catch (e) {
-    st.textContent = 'B≥πd sieci: ' + e;
-  }
+function tsStackText(s){var x=splitTimeForDisplay(s); return x.t ? (x.d+' '+x.t) : x.d;}
+async function tick(){
+  const st=document.getElementById('pv-status');
+  try{
+    const r=await fetch('/api/live');
+    const j=await r.json();
+    if(!j.ok){st.textContent=j.error||'Brak danych w bazie'; return;}
+    st.textContent='Zrodlo: ostatni rekord z bazy (odswiezanie co 20 s)';
+    var ts=splitTimeForDisplay(j.time||'');
+    document.getElementById('pv-time-d').textContent=ts.d;
+    document.getElementById('pv-time-t').textContent=ts.t;
+    document.getElementById('pv-pv').textContent=fmtW(j.pv_w);
+    document.getElementById('pv-l1').textContent=fmtW(j.l1_w);
+    document.getElementById('pv-l2').textContent=fmtW(j.l2_w);
+    document.getElementById('pv-l3').textContent=fmtW(j.l3_w);
+    const sum=(j.l1_w||0)+(j.l2_w||0)+(j.l3_w||0);
+    document.getElementById('pv-sum').textContent=fmtW(sum);
+    document.getElementById('last-pv').textContent=tsStackText(j.pv_ts||'');
+    document.getElementById('last-l1').textContent=tsStackText(j.l1_ts||'');
+    document.getElementById('last-l2').textContent=tsStackText(j.l2_ts||'');
+    document.getElementById('last-l3').textContent=tsStackText(j.l3_ts||'');
+  }catch(e){st.textContent='Blad sieci: '+e;}
 }
 tick();
 setInterval(tick, 20000);
 </script>
 {% endblock %}
-
