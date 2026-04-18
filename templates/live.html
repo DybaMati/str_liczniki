@@ -104,7 +104,8 @@ function fmtKOdo(n){
   if(n==null||Number.isNaN(n)) return '<span class="kwh-odo">-</span>';
   var s=(Math.round(n*10)/10).toFixed(1).replace('.',',');
   var parts=s.split(',');
-  var left=parts[0]||'0';
+  var leftRaw=parts[0]||'0';
+  var left=leftRaw.length < 5 ? leftRaw.padStart(5,'0') : leftRaw;
   var right=(parts[1]||'0').charAt(0);
   var h='<span class="kwh-odo">';
   for(var i=0;i<left.length;i++){ h += '<span class="cell">'+left.charAt(i)+'</span>'; }
