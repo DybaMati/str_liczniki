@@ -45,7 +45,8 @@
     let lastXTickSet = null;
 
     function xAxisIntervalFn(index) {
-        return !lastXTickSet || !lastXTickSet.has(index);
+        if (!lastXTickSet) return index === 0;
+        return lastXTickSet.has(index);
     }
 
     /** Data w pierwszej linii, godzina pod spodem — brak nachodzenia jak przy jednej linii */
