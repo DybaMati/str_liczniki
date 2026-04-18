@@ -40,6 +40,20 @@ python run.py
 
 Domyślnie: `http://0.0.0.0:8765` — strony: `/live`, `/chart`, `/meters`.
 
+## Dostęp tylko z wybranych IP (Tailscale / LAN)
+
+W pliku **`.env`** (obok projektu, nie jest w repozytorium) ustaw np.:
+
+```env
+ALLOWED_CLIENT_IPS=100.106.91.99
+```
+
+Można podać kilka adresów lub sieci **CIDR** po przecinku, np. `127.0.0.1,192.168.1.0/24`. **Pusta zmienna = brak blokady** (wszyscy mają dostęp).
+
+Łączysz się przez **nginx** jako reverse proxy? Ustaw `TRUST_X_FORWARDED_FOR=true` i przekazuj `X-Forwarded-For` z prawdziwym IP klienta.
+
+Po zmianie `.env` **zrestartuj** proces (`python run.py` / usługa).
+
 ## Schemat bazy (MySQL)
 
 - `sofar_data` — PV: `timestamp`, `moc_w`
