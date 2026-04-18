@@ -5,7 +5,13 @@
 .pv-card{background:rgba(255,255,255,0.08);border-radius:6px;padding:10px 14px;flex:1;min-width:120px}
 .pv-card-label{font-size:12px;color:#aaa;margin:0 0 2px}
 .pv-card-value{font-size:22px;font-weight:500;margin:0}
+.pv-time-stack .pv-d{font-size:clamp(14px,3.5vw,18px);line-height:1.2}
+.pv-time-stack .pv-t{font-size:clamp(12px,3vw,14px);color:#888;margin-top:2px}
 .pv-meta{color:#888;font-size:13px;margin-top:10px}
+@media (max-width: 480px) {
+  .pv-header{gap:8px}
+  .pv-card{min-width:calc(50% - 6px);flex:1 1 140px}
+}
 </style>
 
 <h1 style="font-weight:600;font-size:1.2rem;margin:0 0 12px">Odczyt na żywo</h1>
@@ -14,7 +20,7 @@
 <div class="pv-header">
   <div class="pv-card">
     <p class="pv-card-label">Czas odczytu</p>
-    <p class="pv-card-value" id="pv-time">—</p>
+    <div class="pv-card-value pv-time-stack" id="pv-time-wrap"><p class="pv-d" id="pv-time-d">—</p><p class="pv-t" id="pv-time-t"></p></div>
   </div>
   <div class="pv-card">
     <p class="pv-card-label">PV produkcja</p>
@@ -44,6 +50,12 @@ function fmtW(n) {
   if (n == null || Number.isNaN(n)) return '—';
   return Math.round(n) + ' W';
 }
+function splitTimeForDisplay(s) {
+  if (!s || s === '—') return { d: '—', t: '' };
+  var m = String(s).match(/^(\d{4})-(\d{2})-(\d{2})[\sT](\d{2}:\d{2}:\d{2})/);
+  if (m) return { d: m[3] + '-' + m[2] + '-' + m[1], t: m[4] };
+  return { d: s, t: '' };
+}
 async function tick() {
   const st = document.getElementById('pv-status');
   try {
@@ -54,7 +66,9 @@ async function tick() {
       return;
     }
     st.textContent = 'Źródło: ostatni rekord z bazy (odświeżanie co 2 s)';
-    document.getElementById('pv-time').textContent = j.time || '—';
+    var ts = splitTimeForDisplay(j.time || '');
+    document.getElementById('pv-time-d').textContent = ts.d;
+    document.getElementById('pv-time-t').textContent = ts.t;
     document.getElementById('pv-pv').textContent = fmtW(j.pv_w);
     document.getElementById('pv-l1').textContent = fmtW(j.l1_w);
     document.getElementById('pv-l2').textContent = fmtW(j.l2_w);

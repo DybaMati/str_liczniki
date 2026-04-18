@@ -7,9 +7,15 @@
 .pv-card-value{font-size:20px;font-weight:500;margin:0}
 .pv-range{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
 .pv-range label{color:#ccc;font-size:13px}
-.pv-range input{background:#1e1e1e;border:1px solid #444;color:#fff;padding:4px 8px;border-radius:4px;font-size:13px}
-.pv-range button{background:#3b82f6;color:#fff;border:none;padding:5px 14px;border-radius:4px;cursor:pointer;font-size:13px}
+.pv-range input[type="date"]{background:#1e1e1e;border:1px solid #444;color:#fff;padding:6px 8px;border-radius:4px;font-size:max(14px,1rem);min-height:44px;flex:1 1 auto;min-width:0;max-width:100%}
+.pv-range button{background:#3b82f6;color:#fff;border:none;padding:8px 14px;border-radius:4px;cursor:pointer;font-size:13px;min-height:44px}
 .pv-range button:hover{background:#2563eb}
+#pv-chart-status{flex:1;min-width:120px;font-size:13px;color:#888}
+.pv-chart-box{width:100%;min-height:260px;height:min(420px,58vh);box-sizing:border-box}
+@media (max-width: 480px) {
+  .pv-range{flex-direction:column;align-items:stretch}
+  .pv-range input[type="date"]{width:100%}
+}
 </style>
 
 <h1 style="font-weight:600;font-size:1.2rem;margin:0 0 12px">Wykres mocy</h1>
@@ -24,7 +30,7 @@
     <span id="pv-chart-status" style="color:#888;font-size:13px"></span>
   </div>
 
-  <div id="pvChart" style="width:100%; height:390px;"></div>
+  <div id="pvChart" class="pv-chart-box"></div>
 </div>
 {% endblock %}
 {% block scripts %}
@@ -61,6 +67,28 @@
         } catch (e) {
             status.textContent = 'Błąd: ' + e;
         }
+    }
+
+    function chartResponsive() {
+        if (!chart || !option) return;
+        var w = window.innerWidth;
+        var small = w < 520;
+        chart.setOption({
+            legend: {
+                textStyle: { fontSize: small ? 10 : 13 },
+                itemGap: small ? 12 : 25
+            },
+            xAxis: {
+                axisLabel: {
+                    color: '#ccc',
+                    fontSize: small ? 9 : 11,
+                    rotate: small ? 50 : 0,
+                    interval: small ? 'auto' : 0
+                }
+            },
+            grid: { left: 10, right: 10, top: small ? 52 : 45, bottom: small ? 95 : 80, containLabel: true }
+        });
+        chart.resize();
     }
 
     function loadECharts() {
@@ -107,8 +135,8 @@ r += p.seriesName + ': <b>' + Math.round(p.value) + ' W</b><br/>'; }); return r;
 
         chart.setOption(option);
 
-        setTimeout(function() { chart.resize(); }, 300);
-        window.addEventListener('resize', function() { if (chart) chart.resize(); });
+        setTimeout(function() { chart.resize(); chartResponsive(); }, 300);
+        window.addEventListener('resize', function() { chartResponsive(); });
 
         setTimeout(sendRange, 400);
     }
@@ -134,6 +162,7 @@ r += p.seriesName + ': <b>' + Math.round(p.value) + ' W</b><br/>'; }); return r;
         option.series[3].data = s3;
         option.series[4].data = s4;
         chart.setOption(option);
+        chartResponsive();
     }
 
     initDateInputs();

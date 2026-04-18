@@ -1,46 +1,68 @@
 {% extends "base.html" %}
 {% block content %}
 <style>
+.m-intro{color:#888;font-size:clamp(13px,3.2vw,14px);margin:0 0 12px;line-height:1.45;max-width:100%}
 .pv-range{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:14px}
 .pv-range label{color:#ccc;font-size:13px}
-.pv-range input{background:#1e1e1e;border:1px solid #444;color:#fff;padding:4px 8px;border-radius:4px;font-size:13px}
-.pv-range button{background:#3b82f6;color:#fff;border:none;padding:5px 14px;border-radius:4px;cursor:pointer;font-size:13px}
+.pv-range input[type="date"]{background:#1e1e1e;border:1px solid #444;color:#fff;padding:6px 8px;border-radius:4px;font-size:max(14px,1rem);min-height:44px;max-width:100%}
+.pv-range button{background:#3b82f6;color:#fff;border:none;padding:8px 14px;border-radius:4px;cursor:pointer;font-size:13px;min-height:44px}
 .pv-range button:hover{background:#2563eb}
-.wrap{overflow-x:auto;margin-top:8px}
-table{border-collapse:collapse;width:100%;min-width:720px}
-th,td{border:1px solid #333;padding:8px 10px;text-align:left}
-th{color:#aaa;font-weight:500;font-size:12px}
-td{font-size:14px}
-.num{text-align:right;font-variant-numeric:tabular-nums}
-.ts{color:#888;font-size:12px;white-space:nowrap}
+#m-status{flex:1;min-width:140px;color:#888;font-size:13px}
+/* Tabela — szerokość dopasowana do treści, bez sztucznego „rozepchania” */
+.wrap-table{overflow-x:auto;-webkit-overflow-scrolling:touch;margin-top:8px}
+table.meters-tbl{width:max-content;max-width:100%;table-layout:auto;border-collapse:collapse;margin:0 auto}
+.meters-tbl th,.meters-tbl td{border:1px solid #333;padding:6px 10px;text-align:left;vertical-align:top}
+.meters-tbl th{color:#aaa;font-weight:500;font-size:12px}
+.meters-tbl td{font-size:14px}
+.meters-tbl .num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.meters-tbl .ts-cell{line-height:1.35}
+.ts-date{font-size:13px}
+.ts-time{font-size:12px;color:#888}
+/* Karty — telefony */
+.m-cards{display:none;flex-direction:column;gap:12px;margin-top:12px}
+.m-card{background:rgba(255,255,255,0.06);border:1px solid #333;border-radius:8px;padding:12px 14px}
+.m-card h3{margin:0 0 10px;font-size:1rem;font-weight:600}
+.m-card .id{color:#888;font-weight:400;font-size:0.9em}
+.m-card dl{margin:0;display:grid;grid-template-columns:auto 1fr;gap:6px 12px;font-size:14px}
+.m-card dt{color:#888;font-size:12px;margin:0}
+.m-card dd{margin:0;text-align:right}
+.m-card .numdd{font-variant-numeric:tabular-nums}
+@media (max-width: 720px) {
+  .wrap-table{display:none}
+  .m-cards{display:flex}
+}
+@media (min-width: 721px) {
+  .wrap-table{display:block}
+  .m-cards{display:none !important}
+}
 </style>
 
-<h1 style="font-weight:600;font-size:1.2rem;margin:0 0 8px">Zużycie liczników (kWh)</h1>
-<p style="color:#888;font-size:14px;margin:0 0 12px;max-width:72ch">
-  <strong>Początek:</strong> pierwszy zapis <code>energia_kwh</code> w <strong>pierwszym dniu</strong> zakresu (od 00:00:00 tego dnia).
-  <strong>Koniec:</strong> ostatni zapis w <strong>ostatnim dniu</strong> przed północą następnego dnia.
-  Ostatnia kolumna: <strong>różnica</strong> (koniec kWh − początek kWh).
+<h1 style="font-weight:600;font-size:clamp(1.1rem,4vw,1.2rem);margin:0 0 8px">Zużycie liczników (kWh)</h1>
+<p class="m-intro">
+  <strong>Początek:</strong> pierwszy zapis <code>energia_kwh</code> w pierwszym dniu zakresu (od 00:00:00).
+  <strong>Koniec:</strong> ostatni zapis w ostatnim dniu przed północą następnego dnia.
+  <strong>Różnica:</strong> koniec kWh − początek kWh.
 </p>
 
 <div class="pv-range">
-  <label>Od:</label>
+  <label for="m-from">Od</label>
   <input type="date" id="m-from" />
-  <label>Do:</label>
+  <label for="m-to">Do</label>
   <input type="date" id="m-to" />
   <button type="button" id="m-send">Oblicz</button>
-  <span id="m-status" style="color:#888;font-size:13px"></span>
+  <span id="m-status"></span>
 </div>
 
-<div class="wrap">
-<table>
+<div class="wrap-table">
+<table class="meters-tbl">
   <thead>
     <tr>
       <th>Licznik</th>
       <th>ID</th>
       <th class="num">Początek kWh</th>
-      <th class="ts">czas pocz.</th>
+      <th>czas pocz.</th>
       <th class="num">Koniec kWh</th>
-      <th class="ts">czas koń.</th>
+      <th>czas koń.</th>
       <th class="num">Różnica kWh<br><span style="font-size:10px;font-weight:400;color:#888">koniec − początek</span></th>
     </tr>
   </thead>
@@ -49,6 +71,7 @@ td{font-size:14px}
   </tbody>
 </table>
 </div>
+<div id="m-cards" class="m-cards"></div>
 {% endblock %}
 {% block scripts %}
 <script>
@@ -63,9 +86,14 @@ function fmtNum(x) {
   if (x == null || x === '') return '—';
   return (Math.round(Number(x) * 1000) / 1000);
 }
-function fmtTs(t) {
-  if (!t) return '—';
-  return t;
+/** dd-mm-rrrr + pod spodem hh:mm:ss */
+function fmtTsStackHtml(ts) {
+  if (!ts || ts === '—') return '—';
+  var m = String(ts).match(/^(\d{4})-(\d{2})-(\d{2})[\sT](\d{2}:\d{2}:\d{2})/);
+  if (m) {
+    return '<span class="ts-date">' + m[3] + '-' + m[2] + '-' + m[1] + '</span><br><span class="ts-time">' + m[4] + '</span>';
+  }
+  return String(ts).replace(/</g, '&lt;');
 }
 function diffKwh(m) {
   if (m.kwh != null && m.kwh !== '') return fmtNum(m.kwh);
@@ -73,11 +101,30 @@ function diffKwh(m) {
     return fmtNum(Number(m.end_kwh) - Number(m.start_kwh));
   return '—';
 }
+function renderCards(meters) {
+  var el = document.getElementById('m-cards');
+  el.innerHTML = '';
+  meters.forEach(function(m) {
+    var art = document.createElement('article');
+    art.className = 'm-card';
+    art.innerHTML =
+      '<h3>' + (m.label || '') + ' <span class="id">#' + (m.meter_id || '') + '</span></h3>' +
+      '<dl>' +
+      '<dt>Początek kWh</dt><dd class="numdd">' + fmtNum(m.start_kwh) + '</dd>' +
+      '<dt>czas pocz.</dt><dd class="ts-cell">' + fmtTsStackHtml(m.start_ts) + '</dd>' +
+      '<dt>Koniec kWh</dt><dd class="numdd">' + fmtNum(m.end_kwh) + '</dd>' +
+      '<dt>czas koń.</dt><dd class="ts-cell">' + fmtTsStackHtml(m.end_ts) + '</dd>' +
+      '<dt>Różnica kWh</dt><dd class="numdd">' + diffKwh(m) + '</dd>' +
+      '</dl>';
+    el.appendChild(art);
+  });
+}
 async function loadMeters() {
   const from = document.getElementById('m-from').value;
   const to = document.getElementById('m-to').value;
   const status = document.getElementById('m-status');
   const body = document.getElementById('m-body');
+  const cards = document.getElementById('m-cards');
   if (!from || !to) return;
   status.textContent = 'Ładowanie…';
   try {
@@ -85,6 +132,7 @@ async function loadMeters() {
     const j = await r.json();
     if (!j.ok || !j.meters) {
       body.innerHTML = '<tr><td colspan="7" style="color:#f87171">Brak danych</td></tr>';
+      cards.innerHTML = '';
       status.textContent = '';
       return;
     }
@@ -95,16 +143,18 @@ async function loadMeters() {
         '<td>' + (m.label || '') + '</td>' +
         '<td>' + (m.meter_id || '') + '</td>' +
         '<td class="num">' + fmtNum(m.start_kwh) + '</td>' +
-        '<td class="ts">' + fmtTs(m.start_ts) + '</td>' +
+        '<td class="ts-cell">' + fmtTsStackHtml(m.start_ts) + '</td>' +
         '<td class="num">' + fmtNum(m.end_kwh) + '</td>' +
-        '<td class="ts">' + fmtTs(m.end_ts) + '</td>' +
+        '<td class="ts-cell">' + fmtTsStackHtml(m.end_ts) + '</td>' +
         '<td class="num">' + diffKwh(m) + '</td>';
       body.appendChild(tr);
     });
-    status.textContent = 'Pierwszy dzień: ' + j.from + ' · Ostatni dzień: ' + j.to;
+    renderCards(j.meters);
+    status.textContent = 'Dni: ' + j.from + ' → ' + j.to;
   } catch (e) {
     status.textContent = 'Błąd: ' + e;
     body.innerHTML = '<tr><td colspan="7" style="color:#f87171">Błąd sieci</td></tr>';
+    cards.innerHTML = '';
   }
 }
 initDates();

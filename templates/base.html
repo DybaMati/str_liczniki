@@ -6,28 +6,39 @@
   <title>{{ title }} — PV / liczniki</title>
   <style>
     :root { color-scheme: dark; }
+    *, *::before, *::after { box-sizing: border-box; }
     body {
       margin: 0;
       font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
       background: #121212;
       color: #e5e5e5;
       min-height: 100vh;
+      -webkit-text-size-adjust: 100%;
     }
     a { color: #93c5fd; text-decoration: none; }
     a:hover { text-decoration: underline; }
     .nav {
       display: flex;
       flex-wrap: wrap;
-      gap: 12px;
+      gap: 8px 12px;
       align-items: center;
-      padding: 12px 18px;
+      padding: 12px max(14px, env(safe-area-inset-right)) 12px max(14px, env(safe-area-inset-left));
       background: #1a1a1a;
       border-bottom: 1px solid #333;
     }
-    .nav strong { margin-right: 8px; }
-    .nav a { padding: 6px 10px; border-radius: 6px; }
+    .nav strong { margin-right: 4px; font-size: clamp(0.9rem, 3vw, 1rem); }
+    .nav a { padding: 8px 10px; border-radius: 6px; font-size: clamp(0.85rem, 3vw, 0.95rem); }
     .nav a.active { background: rgba(59, 130, 246, 0.25); color: #fff; }
-    main { padding: 16px 18px 32px; max-width: 1200px; margin: 0 auto; }
+    main {
+      padding: 12px max(12px, env(safe-area-inset-right)) 28px max(12px, env(safe-area-inset-left));
+      max-width: 1200px;
+      margin: 0 auto;
+      width: 100%;
+    }
+    @media (max-width: 480px) {
+      .nav { gap: 6px 8px; padding-top: 10px; padding-bottom: 10px; }
+      .nav a { padding: 6px 8px; }
+    }
     .err { color: #f87171; margin-top: 8px; font-size: 14px; }
   </style>
   {% block head %}{% endblock %}
