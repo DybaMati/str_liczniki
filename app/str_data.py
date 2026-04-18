@@ -52,6 +52,63 @@ def _range_boundaries(date_from: str, date_to: str) -> Dict[str, str]:
     }
 
 
+def _fetch_meter_watts_series(licznik_id: int, points: int = 24) -> List[float]:
+    rows = fetch_all(
+        text(
+            """
+            SELECT moc_w AS w
+            FROM licznik_pomiary
+            WHERE licznik_id = :lid
+            ORDER BY `timestamp` DESC
+            LIMIT :lim
+            """
+        ),
+        {"lid": licznik_id, "lim": points},
+    )
+    # Query returns DESC; frontend sparkline expects left->right timeline.
+    vals = [float(r.get("w") or 0.0) for r in rows]
+    vals.reverse()
+    return vals
+
+
+def _fetch_meter_live_card(licznik_id: int, label: str) -> Dict[str, Any]:
+    row = fetch_one(
+        text(
+            """
+            SELECT `timestamp` AS ts, moc_w, napiecie_v, prad_a
+            FROM licznik_pomiary
+            WHERE licznik_id = :lid
+            ORDER BY `timestamp` DESC
+            LIMIT 1
+            """
+        ),
+        {"lid": licznik_id},
+    )
+    e_row = fetch_one(
+        text(
+            """
+            SELECT `timestamp` AS ts, energia_kwh
+            FROM licznik_energia
+            WHERE licznik_id = :lid
+            ORDER BY `timestamp` DESC
+            LIMIT 1
+            """
+        ),
+        {"lid": licznik_id},
+    )
+    return {
+        "id": licznik_id,
+        "label": label,
+        "ts": _fmt_ts(row.get("ts")) if row and row.get("ts") else "",
+        "wat_w": float(row.get("moc_w") or 0.0) if row else 0.0,
+        "voltage_v": float(row.get("napiecie_v") or 0.0) if row else 0.0,
+        "amp_a": float(row.get("prad_a") or 0.0) if row else 0.0,
+        "kwh": float(e_row.get("energia_kwh") or 0.0) if e_row else 0.0,
+        "kwh_ts": _fmt_ts(e_row.get("ts")) if e_row and e_row.get("ts") else "",
+        "wat_series": _fetch_meter_watts_series(licznik_id),
+    }
+
+
 def fetch_live() -> Optional[Dict[str, Any]]:
     """Ostatni pomiar PV (sofar) oraz ostatni na każdym liczniku."""
     pv = fetch_one(
@@ -86,6 +143,11 @@ def fetch_live() -> Optional[Dict[str, Any]]:
         if m and m.get("ts"):
             times.append(_to_dt(m["ts"]))
     t_show = max(times) if times else datetime.now()
+    meter_cards = [
+        _fetch_meter_live_card(id1, "Tomek"),
+        _fetch_meter_live_card(id2, "Lonia"),
+        _fetch_meter_live_card(id3, "Henia"),
+    ]
     return {
         "ts": t_show,
         "pv_ts": _fmt_ts(pv.get("ts")) if pv and pv.get("ts") else "",
@@ -96,6 +158,7 @@ def fetch_live() -> Optional[Dict[str, Any]]:
         "l1_w": float(m1["w"]) if m1 and m1.get("w") is not None else 0.0,
         "l2_w": float(m2["w"]) if m2 and m2.get("w") is not None else 0.0,
         "l3_w": float(m3["w"]) if m3 and m3.get("w") is not None else 0.0,
+        "meter_cards": meter_cards,
     }
 
 

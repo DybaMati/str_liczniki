@@ -143,6 +143,7 @@ async def api_live():
         "l1_w": float(row.get("l1_w") or 0),
         "l2_w": float(row.get("l2_w") or 0),
         "l3_w": float(row.get("l3_w") or 0),
+        "meter_cards": row.get("meter_cards") or [],
     }
 
 

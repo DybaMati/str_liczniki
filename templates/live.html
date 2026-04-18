@@ -1,61 +1,99 @@
 ﻿{% extends "base.html" %}
 {% block content %}
 <style>
-.pv-header{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px}
-.pv-card{background:rgba(255,255,255,0.08);border-radius:6px;padding:10px 14px;flex:1;min-width:120px}
-.pv-card-label{font-size:12px;color:#aaa;margin:0 0 2px}
-.pv-card-value{font-size:22px;font-weight:500;margin:0}
-.pv-time-stack .pv-d{font-size:clamp(14px,3.5vw,18px);line-height:1.2}
-.pv-time-stack .pv-t{font-size:clamp(12px,3vw,14px);color:#888;margin-top:2px}
-.pv-meta{color:#888;font-size:13px;margin-top:10px}
-.pv-lastbar{margin-top:14px;background:rgba(255,255,255,0.05);border:1px solid #333;border-radius:8px;padding:10px 12px}
-.pv-lastbar-title{font-size:12px;color:#aaa;margin-bottom:6px}
-.pv-lastbar-grid{display:grid;grid-template-columns:repeat(4,minmax(130px,1fr));gap:8px 12px}
-.pv-last-item b{display:block;font-size:12px;color:#ccc;font-weight:500}
-.pv-last-item span{display:block;font-size:12px;color:#8f8f8f;line-height:1.3}
-@media (max-width: 700px) {.pv-lastbar-grid{grid-template-columns:repeat(2,minmax(120px,1fr));}}
-@media (max-width: 480px) {
-  .pv-header{gap:8px}
-  .pv-card{min-width:calc(50% - 6px);flex:1 1 140px}
-  .pv-lastbar-grid{grid-template-columns:1fr;}
-}
+.pv-top{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-bottom:12px}
+.pv-card{background:rgba(255,255,255,0.08);border-radius:8px;padding:10px 12px}
+.pv-card-label{font-size:12px;color:#aaa;margin:0 0 3px}
+.pv-card-value{font-size:22px;font-weight:600;margin:0}
+.pv-meta{color:#888;font-size:13px;margin:0 0 10px}
+
+.meter-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px;margin-top:10px}
+.meter-card{background:rgba(255,255,255,0.06);border:1px solid #333;border-radius:10px;padding:12px}
+.meter-title{font-size:16px;font-weight:600;margin:0 0 8px}
+.meter-ts{font-size:12px;color:#8d8d8d;margin:0 0 10px}
+.meter-rows{display:grid;grid-template-columns:1fr;gap:7px}
+.meter-row{display:flex;justify-content:space-between;gap:8px;align-items:baseline}
+.meter-row b{font-size:12px;color:#a9a9a9;font-weight:500}
+.meter-row span{font-size:15px;font-variant-numeric:tabular-nums}
+.spark-wrap{margin-top:8px}
+.spark-wrap b{display:block;font-size:12px;color:#a9a9a9;font-weight:500;margin-bottom:4px}
+.spark{width:100%;height:48px;background:#161616;border:1px solid #2b2b2b;border-radius:6px}
+
+.lastbar{margin-top:12px;background:rgba(255,255,255,0.05);border:1px solid #333;border-radius:8px;padding:10px 12px}
+.lastbar-title{font-size:12px;color:#aaa;margin-bottom:6px}
+.lastbar-grid{display:grid;grid-template-columns:repeat(4,minmax(120px,1fr));gap:8px 12px}
+.lastbar-item b{display:block;font-size:12px;color:#ccc;font-weight:500}
+.lastbar-item span{display:block;font-size:12px;color:#8f8f8f;line-height:1.3}
+@media (max-width: 700px){.lastbar-grid{grid-template-columns:repeat(2,minmax(120px,1fr));}}
+@media (max-width: 460px){.lastbar-grid{grid-template-columns:1fr;}}
 </style>
 
-<h1 style="font-weight:600;font-size:1.2rem;margin:0 0 12px">Odczyt na zywo</h1>
+<h1 style="font-weight:600;font-size:1.2rem;margin:0 0 10px">Odczyt na zywo</h1>
 <p class="pv-meta" id="pv-status">Ladowanie...</p>
 
-<div class="pv-header">
-  <div class="pv-card">
-    <p class="pv-card-label">Czas odczytu</p>
-    <div class="pv-card-value pv-time-stack" id="pv-time-wrap"><p class="pv-d" id="pv-time-d">-</p><p class="pv-t" id="pv-time-t"></p></div>
-  </div>
+<div class="pv-top">
+  <div class="pv-card"><p class="pv-card-label">Czas odczytu</p><p class="pv-card-value" id="pv-time">-</p></div>
   <div class="pv-card"><p class="pv-card-label">PV produkcja</p><p class="pv-card-value" id="pv-pv">-</p></div>
-  <div class="pv-card"><p class="pv-card-label">Tomek L1</p><p class="pv-card-value" id="pv-l1">-</p></div>
-  <div class="pv-card"><p class="pv-card-label">Lonia L2</p><p class="pv-card-value" id="pv-l2">-</p></div>
-  <div class="pv-card"><p class="pv-card-label">Henia L3</p><p class="pv-card-value" id="pv-l3">-</p></div>
   <div class="pv-card"><p class="pv-card-label">Suma zuzycia</p><p class="pv-card-value" id="pv-sum">-</p></div>
 </div>
 
-<div class="pv-lastbar">
-  <div class="pv-lastbar-title">Ostatni pomiar zrodlowy</div>
-  <div class="pv-lastbar-grid">
-    <div class="pv-last-item"><b>PV</b><span id="last-pv">-</span></div>
-    <div class="pv-last-item"><b>Tomek L1</b><span id="last-l1">-</span></div>
-    <div class="pv-last-item"><b>Lonia L2</b><span id="last-l2">-</span></div>
-    <div class="pv-last-item"><b>Henia L3</b><span id="last-l3">-</span></div>
+<div class="meter-grid" id="meter-grid"></div>
+
+<div class="lastbar">
+  <div class="lastbar-title">Ostatni pomiar zrodlowy</div>
+  <div class="lastbar-grid">
+    <div class="lastbar-item"><b>PV</b><span id="last-pv">-</span></div>
+    <div class="lastbar-item"><b>Tomek L1</b><span id="last-l1">-</span></div>
+    <div class="lastbar-item"><b>Lonia L2</b><span id="last-l2">-</span></div>
+    <div class="lastbar-item"><b>Henia L3</b><span id="last-l3">-</span></div>
   </div>
 </div>
 {% endblock %}
 {% block scripts %}
 <script>
-function fmtW(n){if(n==null||Number.isNaN(n)) return '-'; return Math.round(n)+' W';}
-function splitTimeForDisplay(s){
-  if(!s||s==='-') return {d:'-',t:''};
-  var m=String(s).match(/^(\d{4})-(\d{2})-(\d{2})[\sT](\d{2}:\d{2}:\d{2})/);
-  if(m) return {d:m[3]+'-'+m[2]+'-'+m[1], t:m[4]};
-  return {d:s,t:''};
+function fmtW(n){return (n==null||Number.isNaN(n))?'-':(Math.round(n*10)/10).toFixed(1)+' W';}
+function fmtV(n){return (n==null||Number.isNaN(n))?'-':(Math.round(n*10)/10).toFixed(1)+' V';}
+function fmtA(n){return (n==null||Number.isNaN(n))?'-':(Math.round(n*10)/10).toFixed(1)+' A';}
+function fmtK(n){return (n==null||Number.isNaN(n))?'-':(Math.round(n*10)/10).toFixed(1)+' kWh';}
+function fmtTs(s){return s||'-';}
+
+function drawSparkline(svg, values){
+  if(!svg) return;
+  const w=svg.clientWidth||260, h=48;
+  svg.setAttribute('viewBox', '0 0 '+w+' '+h);
+  if(!values||!values.length){svg.innerHTML=''; return;}
+  const min=Math.min.apply(null,values), max=Math.max.apply(null,values);
+  const span=(max-min)||1;
+  const points=values.map(function(v,i){
+    const x=(i/(values.length-1||1))*w;
+    const y=h-4-((v-min)/span)*(h-8);
+    return x.toFixed(1)+','+y.toFixed(1);
+  }).join(' ');
+  svg.innerHTML='<polyline fill="none" stroke="#3b82f6" stroke-width="2" points="'+points+'" />';
 }
-function tsStackText(s){var x=splitTimeForDisplay(s); return x.t ? (x.d+' '+x.t) : x.d;}
+
+function renderMeters(cards){
+  const box=document.getElementById('meter-grid');
+  box.innerHTML='';
+  cards.forEach(function(c,idx){
+    const id='spark-'+idx;
+    const el=document.createElement('article');
+    el.className='meter-card';
+    el.innerHTML =
+      '<h3 class="meter-title">'+(c.label||'Licznik')+'</h3>'+
+      '<p class="meter-ts">Ostatni pomiar: '+fmtTs(c.ts)+'</p>'+
+      '<div class="meter-rows">'+
+      '  <div class="meter-row"><b>Voltage</b><span>'+fmtV(c.voltage_v)+'</span></div>'+
+      '  <div class="meter-row"><b>Wat</b><span>'+fmtW(c.wat_w)+'</span></div>'+
+      '  <div class="spark-wrap"><b>Wat wykres</b><svg class="spark" id="'+id+'"></svg></div>'+
+      '  <div class="meter-row"><b>Amper</b><span>'+fmtA(c.amp_a)+'</span></div>'+
+      '  <div class="meter-row"><b>ile kWh</b><span>'+fmtK(c.kwh)+'</span></div>'+
+      '</div>';
+    box.appendChild(el);
+    drawSparkline(el.querySelector('#'+id), c.wat_series||[]);
+  });
+}
+
 async function tick(){
   const st=document.getElementById('pv-status');
   try{
@@ -63,22 +101,19 @@ async function tick(){
     const j=await r.json();
     if(!j.ok){st.textContent=j.error||'Brak danych w bazie'; return;}
     st.textContent='Zrodlo: ostatni rekord z bazy (odswiezanie co 20 s)';
-    var ts=splitTimeForDisplay(j.time||'');
-    document.getElementById('pv-time-d').textContent=ts.d;
-    document.getElementById('pv-time-t').textContent=ts.t;
+    document.getElementById('pv-time').textContent=fmtTs(j.time);
     document.getElementById('pv-pv').textContent=fmtW(j.pv_w);
-    document.getElementById('pv-l1').textContent=fmtW(j.l1_w);
-    document.getElementById('pv-l2').textContent=fmtW(j.l2_w);
-    document.getElementById('pv-l3').textContent=fmtW(j.l3_w);
     const sum=(j.l1_w||0)+(j.l2_w||0)+(j.l3_w||0);
     document.getElementById('pv-sum').textContent=fmtW(sum);
-    document.getElementById('last-pv').textContent=tsStackText(j.pv_ts||'');
-    document.getElementById('last-l1').textContent=tsStackText(j.l1_ts||'');
-    document.getElementById('last-l2').textContent=tsStackText(j.l2_ts||'');
-    document.getElementById('last-l3').textContent=tsStackText(j.l3_ts||'');
+    document.getElementById('last-pv').textContent=fmtTs(j.pv_ts);
+    document.getElementById('last-l1').textContent=fmtTs(j.l1_ts);
+    document.getElementById('last-l2').textContent=fmtTs(j.l2_ts);
+    document.getElementById('last-l3').textContent=fmtTs(j.l3_ts);
+    renderMeters(j.meter_cards||[]);
   }catch(e){st.textContent='Blad sieci: '+e;}
 }
+
 tick();
-setInterval(tick, 20000);
+setInterval(tick,20000);
 </script>
 {% endblock %}
