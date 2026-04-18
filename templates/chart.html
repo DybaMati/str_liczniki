@@ -39,8 +39,14 @@
     let chart = null;
     let option = null;
     const MAX_POINTS = 1440;
-    /** ~8 etykiet na osi czasu: poczatek, koniec, 6 rownomiernie w srodku */
-    const X_AXIS_MAX_TICKS = 8;
+    /** Maks. ~10 etykiet na osi czasu (rownomiernie: poczatek, koniec, srodek) */
+    const X_AXIS_MAX_TICKS = 10;
+    /** Utrzymywane przy resize — inaczej ECharts przywraca domyslne ~wszystkie etykiety */
+    let lastXTickSet = null;
+
+    function xAxisIntervalFn(index) {
+        return !lastXTickSet || !lastXTickSet.has(index);
+    }
 
     /** Data w pierwszej linii, godzina pod spodem — brak nachodzenia jak przy jednej linii */
     function formatAxisDateTime(value) {
@@ -122,6 +128,7 @@
                     rotate: 0,
                     lineHeight: 14,
                     formatter: formatAxisDateTime,
+                    interval: xAxisIntervalFn,
                     hideOverlap: true
                 }
             },
@@ -166,9 +173,7 @@ r += p.seriesName + ': <b>' + Math.round(p.value) + ' W</b><br/>'; }); return r;
                     lineHeight: 14,
                     formatter: formatAxisDateTime,
                     hideOverlap: true,
-                    interval: function(index) {
-                        return true;
-                    }
+                    interval: xAxisIntervalFn
                 }
             },
             yAxis: { type: 'value', name: 'W', nameTextStyle: { color: '#ccc' }, axisLabel: { color: '#ccc' } },
@@ -208,10 +213,8 @@ r += p.seriesName + ': <b>' + Math.round(p.value) + ' W</b><br/>'; }); return r;
             s4.push(Math.round(sum));
         });
         option.xAxis.data = times;
-        var tickSet = visibleTickIndexSet(times.length, X_AXIS_MAX_TICKS);
-        option.xAxis.axisLabel.interval = function(index) {
-            return !tickSet.has(index);
-        };
+        lastXTickSet = visibleTickIndexSet(times.length, X_AXIS_MAX_TICKS);
+        option.xAxis.axisLabel.interval = xAxisIntervalFn;
         option.series[0].data = s0;
         option.series[1].data = s1;
         option.series[2].data = s2;
