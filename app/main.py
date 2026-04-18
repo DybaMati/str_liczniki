@@ -162,8 +162,12 @@ async def api_meters_delta(
         items.append(
             {
                 "meter_id": mid,
-                "label": labels.get(mid.lower(), mid),
-                "kwh": float(r.get("kwh_delta") or 0),
+                "label": labels.get(mid, labels.get(mid.lower(), mid)),
+                "start_kwh": r.get("start_kwh"),
+                "start_ts": r.get("start_ts"),
+                "end_kwh": r.get("end_kwh"),
+                "end_ts": r.get("end_ts"),
+                "kwh": r.get("kwh_delta"),
             }
         )
     return {"ok": True, "from": date_from, "to": date_to, "meters": items}

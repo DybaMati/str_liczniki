@@ -4,7 +4,7 @@ Liczniki: 7=Tomek, 8=Lonia, 9=Henia.
 """
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional, Tuple
 
 from sqlalchemy import text
@@ -215,30 +215,79 @@ def fetch_history_merged(date_from: str, date_to: str) -> List[Dict[str, Any]]:
     return out
 
 
-def stmt_meters_kwh_delta():
+def _day_midnight_bounds(day_yyyy_mm_dd: str) -> tuple[str, str]:
+    """[dzień 00:00:00, następny dzień 00:00:00) — granice jednej doby kalendarzowej."""
+    d = datetime.strptime(day_yyyy_mm_dd, "%Y-%m-%d").date()
+    n = d + timedelta(days=1)
+    return (f"{d.isoformat()} 00:00:00", f"{n.isoformat()} 00:00:00")
+
+
+def stmt_meters_kwh_table():
+    """Pierwszy odczyt w pierwszym dniu zakresu (od północy); ostatni w ostatnim dniu (przed północą następnego)."""
     id1, id2, id3 = _ids()
     return text(
         f"""
         SELECT ids.licznik_id AS meter_id,
-          COALESCE((
+          (
             SELECT e.energia_kwh FROM licznik_energia e
-            WHERE e.licznik_id = ids.licznik_id AND e.`timestamp` <= :ts_end
+            WHERE e.licznik_id = ids.licznik_id
+              AND e.`timestamp` >= :df_start AND e.`timestamp` < :df_end
+            ORDER BY e.`timestamp` ASC LIMIT 1
+          ) AS start_kwh,
+          (
+            SELECT e.`timestamp` FROM licznik_energia e
+            WHERE e.licznik_id = ids.licznik_id
+              AND e.`timestamp` >= :df_start AND e.`timestamp` < :df_end
+            ORDER BY e.`timestamp` ASC LIMIT 1
+          ) AS start_ts,
+          (
+            SELECT e.energia_kwh FROM licznik_energia e
+            WHERE e.licznik_id = ids.licznik_id
+              AND e.`timestamp` >= :dt_start AND e.`timestamp` < :dt_end
             ORDER BY e.`timestamp` DESC LIMIT 1
-          ), 0)
-          -
-          COALESCE((
-            SELECT s.energia_kwh FROM licznik_energia s
-            WHERE s.licznik_id = ids.licznik_id AND s.`timestamp` < :ts_start
-            ORDER BY s.`timestamp` DESC LIMIT 1
-          ), 0) AS kwh_delta
+          ) AS end_kwh,
+          (
+            SELECT e.`timestamp` FROM licznik_energia e
+            WHERE e.licznik_id = ids.licznik_id
+              AND e.`timestamp` >= :dt_start AND e.`timestamp` < :dt_end
+            ORDER BY e.`timestamp` DESC LIMIT 1
+          ) AS end_ts
         FROM (SELECT {id1} AS licznik_id UNION SELECT {id2} UNION SELECT {id3}) AS ids
         """
     )
 
 
 def fetch_meters_delta(date_from: str, date_to: str) -> List[Dict[str, Any]]:
-    p = _range_boundaries(date_from, date_to)
-    return fetch_all(
-        stmt_meters_kwh_delta(),
-        {"ts_start": p["ts_from"], "ts_end": p["ts_to"]},
+    """
+    Zwraca: pierwszy odczyt kWh pierwszego dnia (po 00:00:00 tego dnia),
+    ostatni odczyt ostatniego dnia (ostatni przed 00:00 następnego dnia), różnica.
+    """
+    df_start, df_end = _day_midnight_bounds(date_from)
+    dt_start, dt_end = _day_midnight_bounds(date_to)
+    rows = fetch_all(
+        stmt_meters_kwh_table(),
+        {
+            "df_start": df_start,
+            "df_end": df_end,
+            "dt_start": dt_start,
+            "dt_end": dt_end,
+        },
     )
+    out: List[Dict[str, Any]] = []
+    for r in rows:
+        sk = r.get("start_kwh")
+        ek = r.get("end_kwh")
+        delta: Optional[float] = None
+        if sk is not None and ek is not None:
+            delta = float(ek) - float(sk)
+        out.append(
+            {
+                "meter_id": r.get("meter_id"),
+                "start_kwh": float(sk) if sk is not None else None,
+                "start_ts": _fmt_ts(r.get("start_ts")),
+                "end_kwh": float(ek) if ek is not None else None,
+                "end_ts": _fmt_ts(r.get("end_ts")),
+                "kwh_delta": delta,
+            }
+        )
+    return out

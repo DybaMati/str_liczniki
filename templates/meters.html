@@ -6,16 +6,20 @@
 .pv-range input{background:#1e1e1e;border:1px solid #444;color:#fff;padding:4px 8px;border-radius:4px;font-size:13px}
 .pv-range button{background:#3b82f6;color:#fff;border:none;padding:5px 14px;border-radius:4px;cursor:pointer;font-size:13px}
 .pv-range button:hover{background:#2563eb}
-table{border-collapse:collapse;width:100%;max-width:560px;margin-top:8px}
+.wrap{overflow-x:auto;margin-top:8px}
+table{border-collapse:collapse;width:100%;min-width:720px}
 th,td{border:1px solid #333;padding:8px 10px;text-align:left}
-th{color:#aaa;font-weight:500;font-size:13px}
-td{font-size:15px}
+th{color:#aaa;font-weight:500;font-size:12px}
+td{font-size:14px}
 .num{text-align:right;font-variant-numeric:tabular-nums}
+.ts{color:#888;font-size:12px;white-space:nowrap}
 </style>
 
 <h1 style="font-weight:600;font-size:1.2rem;margin:0 0 8px">Zużycie liczników (kWh)</h1>
-<p style="color:#888;font-size:14px;margin:0 0 12px;max-width:60ch">
-  Różnica skumulowanych odczytów: ostatni odczyt ≤ koniec zakresu minus ostatni odczyt &lt; początek zakresu (dla każdego <code>meter_id</code> w tabeli liczników).
+<p style="color:#888;font-size:14px;margin:0 0 12px;max-width:72ch">
+  <strong>Początek:</strong> pierwszy zapis <code>energia_kwh</code> w <strong>pierwszym dniu</strong> zakresu (od 00:00:00 tego dnia).
+  <strong>Koniec:</strong> ostatni zapis w <strong>ostatnim dniu</strong> przed północą następnego dnia.
+  <strong>Zużycie</strong> = koniec − początek.
 </p>
 
 <div class="pv-range">
@@ -27,14 +31,24 @@ td{font-size:15px}
   <span id="m-status" style="color:#888;font-size:13px"></span>
 </div>
 
+<div class="wrap">
 <table>
   <thead>
-    <tr><th>Licznik</th><th>ID</th><th class="num">kWh w zakresie</th></tr>
+    <tr>
+      <th>Licznik</th>
+      <th>ID</th>
+      <th class="num">Początek kWh</th>
+      <th class="ts">czas pocz.</th>
+      <th class="num">Koniec kWh</th>
+      <th class="ts">czas koń.</th>
+      <th class="num">Zużycie kWh</th>
+    </tr>
   </thead>
   <tbody id="m-body">
-    <tr><td colspan="3" style="color:#888">Wybierz zakres i kliknij Oblicz</td></tr>
+    <tr><td colspan="7" style="color:#888">Wybierz zakres i kliknij Oblicz</td></tr>
   </tbody>
 </table>
+</div>
 {% endblock %}
 {% block scripts %}
 <script>
@@ -44,6 +58,14 @@ function todayStr() {
 function initDates() {
   document.getElementById('m-from').value = todayStr();
   document.getElementById('m-to').value = todayStr();
+}
+function fmtNum(x) {
+  if (x == null || x === '') return '—';
+  return (Math.round(Number(x) * 1000) / 1000);
+}
+function fmtTs(t) {
+  if (!t) return '—';
+  return t;
 }
 async function loadMeters() {
   const from = document.getElementById('m-from').value;
@@ -56,20 +78,27 @@ async function loadMeters() {
     const r = await fetch('/api/meters-delta?from=' + encodeURIComponent(from) + '&to=' + encodeURIComponent(to));
     const j = await r.json();
     if (!j.ok || !j.meters) {
-      body.innerHTML = '<tr><td colspan="3" style="color:#f87171">Brak danych</td></tr>';
+      body.innerHTML = '<tr><td colspan="7" style="color:#f87171">Brak danych</td></tr>';
       status.textContent = '';
       return;
     }
     body.innerHTML = '';
     j.meters.forEach(function(m) {
       const tr = document.createElement('tr');
-      tr.innerHTML = '<td>' + (m.label || '') + '</td><td>' + (m.meter_id || '') + '</td><td class="num">' + (Math.round(m.kwh * 1000) / 1000) + '</td>';
+      tr.innerHTML =
+        '<td>' + (m.label || '') + '</td>' +
+        '<td>' + (m.meter_id || '') + '</td>' +
+        '<td class="num">' + fmtNum(m.start_kwh) + '</td>' +
+        '<td class="ts">' + fmtTs(m.start_ts) + '</td>' +
+        '<td class="num">' + fmtNum(m.end_kwh) + '</td>' +
+        '<td class="ts">' + fmtTs(m.end_ts) + '</td>' +
+        '<td class="num">' + fmtNum(m.kwh) + '</td>';
       body.appendChild(tr);
     });
-    status.textContent = 'Zakres: ' + j.from + ' — ' + j.to;
+    status.textContent = 'Pierwszy dzień: ' + j.from + ' · Ostatni dzień: ' + j.to;
   } catch (e) {
     status.textContent = 'Błąd: ' + e;
-    body.innerHTML = '<tr><td colspan="3" style="color:#f87171">Błąd sieci</td></tr>';
+    body.innerHTML = '<tr><td colspan="7" style="color:#f87171">Błąd sieci</td></tr>';
   }
 }
 initDates();
