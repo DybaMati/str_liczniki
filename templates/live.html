@@ -19,7 +19,10 @@ main { max-width: min(100%, 1600px); }
 .pv-loading{color:#93c5fd;font-size:13px;margin:0 0 8px}
 
 .meter-grid{display:grid;grid-template-columns:1fr;gap:16px;margin-top:10px;width:100%}
-.meter-card{background:rgba(255,255,255,0.06);border:1px solid #333;border-radius:10px;padding:12px;width:100%;max-width:100%}
+@media (min-width:960px){
+  .meter-grid{grid-template-columns:repeat(3,1fr)}
+}
+.meter-card{background:rgba(255,255,255,0.06);border:1px solid #333;border-radius:10px;padding:12px;width:100%;max-width:100%;min-width:0;overflow:hidden;box-sizing:border-box}
 .meter-head{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:10px}
 .meter-title{font-size:16px;font-weight:600;margin:0}
 .meter-upd{font-size:11px;color:#8d8d8d;text-align:right;line-height:1.2}
@@ -34,14 +37,14 @@ main { max-width: min(100%, 1600px); }
 .kwh-odo .sep{color:#9ca3af;padding:0 1px}
 .kwh-odo .cell.dec{color:#ef4444;border-color:#6b1f1f;background:#221313}
 .kwh-odo .unit{margin-left:6px;color:#a9a9a9;font-size:12px}
-.spark-wrap{margin-top:8px}
-.spark-wrap b{display:block;font-size:12px;color:#a9a9a9;font-weight:500;margin-bottom:4px}
-.spark{width:100%;height:240px;min-height:240px;background:#161616;border:1px solid #2b2b2b;border-radius:6px;display:block}
+.spark-wrap{margin-top:8px;margin-left:-12px;margin-right:-12px;width:calc(100% + 24px);box-sizing:border-box}
+.spark-wrap b{display:block;font-size:12px;color:#a9a9a9;font-weight:500;margin-bottom:4px;padding-left:12px;padding-right:12px}
+.spark{width:100%;height:240px;min-height:240px;background:#161616;border:1px solid #2b2b2b;border-radius:0;display:block;box-sizing:border-box}
 .meter-skel .sk-line{height:14px;border-radius:4px;background:linear-gradient(90deg,#2a2a2a 0%,#3a3a3a 50%,#2a2a2a 100%);background-size:200% 100%;animation:sk-sh 1.2s ease-in-out infinite}
 .meter-skel .sk-line.w40{width:40%}
 .meter-skel .sk-line.w60{width:60%}
 .meter-skel .sk-line.w80{width:80%}
-.meter-skel .sk-chart{height:240px;border-radius:6px;background:linear-gradient(90deg,#1c1c1c 0%,#252525 50%,#1c1c1c 100%);background-size:200% 100%;animation:sk-sh 1.2s ease-in-out infinite}
+.meter-skel .sk-chart{height:240px;margin-left:-12px;margin-right:-12px;width:calc(100% + 24px);border-radius:0;background:linear-gradient(90deg,#1c1c1c 0%,#252525 50%,#1c1c1c 100%);background-size:200% 100%;animation:sk-sh 1.2s ease-in-out infinite}
 .meter-skel .sk-badge{font-size:11px;color:#6b7280;margin-top:8px}
 @keyframes sk-sh{0%{background-position:200% 0}100%{background-position:-200% 0}}
 </style>

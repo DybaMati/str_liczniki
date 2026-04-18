@@ -42,6 +42,15 @@
     /** ~8 etykiet na osi czasu: poczatek, koniec, 6 rownomiernie w srodku */
     const X_AXIS_MAX_TICKS = 8;
 
+    /** Data w pierwszej linii, godzina pod spodem — brak nachodzenia jak przy jednej linii */
+    function formatAxisDateTime(value) {
+        if (value == null || value === '') return '';
+        var s = String(value);
+        var m = s.match(/^(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2}:\d{2})/);
+        if (m) return m[1] + '\n' + m[2];
+        return s;
+    }
+
     function visibleTickIndexSet(len, maxTicks) {
         if (len <= 0) return new Set();
         if (len === 1) return new Set([0]);
@@ -109,12 +118,14 @@
             xAxis: {
                 axisLabel: {
                     color: '#ccc',
-                    fontSize: small ? 9 : 11,
-                    rotate: small ? 50 : 0,
+                    fontSize: small ? 9 : 10,
+                    rotate: 0,
+                    lineHeight: 14,
+                    formatter: formatAxisDateTime,
                     hideOverlap: true
                 }
             },
-            grid: { left: 10, right: 10, top: small ? 52 : 45, bottom: small ? 95 : 80, containLabel: true }
+            grid: { left: 10, right: 10, top: small ? 52 : 45, bottom: small ? 118 : 108, containLabel: true }
         });
         chart.resize();
     }
@@ -132,7 +143,7 @@
 
         option = {
             backgroundColor: 'transparent',
-            grid: { left: 10, right: 10, top: 45, bottom: 80, containLabel: true },
+            grid: { left: 10, right: 10, top: 45, bottom: 108, containLabel: true },
             tooltip: { trigger: 'axis', axisPointer: { type: 'cross' }, formatter: function(params) { let r =
 '<b>' + params[0].axisValueLabel + '</b><br/>'; params.forEach(function(p) { if (p.value == null) return; r += '<span style="display:inline-block;width:10px;height:10px;background:' + p.color + ';margin-right:4px;border-radius:50%"></span>';
 r += p.seriesName + ': <b>' + Math.round(p.value) + ' W</b><br/>'; }); return r; } },
@@ -151,7 +162,9 @@ r += p.seriesName + ': <b>' + Math.round(p.value) + ' W</b><br/>'; }); return r;
                 data: [],
                 axisLabel: {
                     color: '#ccc',
-                    fontSize: 11,
+                    fontSize: 10,
+                    lineHeight: 14,
+                    formatter: formatAxisDateTime,
                     hideOverlap: true,
                     interval: function(index) {
                         return true;
