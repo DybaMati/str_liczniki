@@ -29,6 +29,11 @@ main { max-width: min(100%, 1600px); }
 .meter-row{display:flex;justify-content:space-between;gap:8px;align-items:baseline}
 .meter-row b{font-size:12px;color:#a9a9a9;font-weight:500}
 .meter-row span{font-size:15px;font-variant-numeric:tabular-nums}
+.kwh-odo{display:inline-flex;align-items:center;gap:3px;font-variant-numeric:tabular-nums}
+.kwh-odo .cell{display:inline-flex;align-items:center;justify-content:center;min-width:14px;height:20px;padding:0 4px;border-radius:4px;border:1px solid #3a3a3a;background:#1a1a1a;color:#e5e5e5;font-size:13px;line-height:1}
+.kwh-odo .sep{color:#9ca3af;padding:0 1px}
+.kwh-odo .cell.dec{color:#ef4444;border-color:#6b1f1f;background:#221313}
+.kwh-odo .unit{margin-left:6px;color:#a9a9a9;font-size:12px}
 .spark-wrap{margin-top:8px}
 .spark-wrap b{display:block;font-size:12px;color:#a9a9a9;font-weight:500;margin-bottom:4px}
 .spark{width:100%;height:240px;min-height:240px;background:#161616;border:1px solid #2b2b2b;border-radius:6px;display:block}
@@ -95,7 +100,20 @@ main { max-width: min(100%, 1600px); }
 function fmtW(n){return (n==null||Number.isNaN(n))?'-':(Math.round(n*10)/10).toFixed(1)+' W';}
 function fmtV(n){return (n==null||Number.isNaN(n))?'-':(Math.round(n*10)/10).toFixed(1)+' V';}
 function fmtA(n){return (n==null||Number.isNaN(n))?'-':(Math.round(n*10)/10).toFixed(1)+' A';}
-function fmtK(n){return (n==null||Number.isNaN(n))?'-':(Math.round(n*10)/10).toFixed(1)+' kWh';}
+function fmtKOdo(n){
+  if(n==null||Number.isNaN(n)) return '<span class="kwh-odo">-</span>';
+  var s=(Math.round(n*10)/10).toFixed(1).replace('.',',');
+  var parts=s.split(',');
+  var left=parts[0]||'0';
+  var right=(parts[1]||'0').charAt(0);
+  var h='<span class="kwh-odo">';
+  for(var i=0;i<left.length;i++){ h += '<span class="cell">'+left.charAt(i)+'</span>'; }
+  h += '<span class="sep">,</span>';
+  h += '<span class="cell dec">'+right+'</span>';
+  h += '<span class="unit">kWh</span>';
+  h += '</span>';
+  return h;
+}
 function fmtTs(s){return s||'-';}
 function splitDateTime(s){
   if(!s) return {d:'-', t:'-'};
@@ -180,7 +198,7 @@ function renderMeters(cards, yMax){
       '  <div class="meter-row"><b>Wat</b><span>'+fmtW(c.wat_w)+'</span></div>'+
       '  <div class="spark-wrap"><b>Wat wykres</b><div class="spark" id="'+id+'"></div></div>'+
       '  <div class="meter-row"><b>Amper</b><span>'+fmtA(c.amp_a)+'</span></div>'+
-      '  <div class="meter-row"><b>ile kWh</b><span>'+fmtK(c.kwh)+'</span></div>'+
+      '  <div class="meter-row"><b>Zuzycie licznik</b><span>'+fmtKOdo(c.kwh)+'</span></div>'+
       '</div>';
     box.appendChild(el);
     drawSparkline(el.querySelector('#'+id), c.wat_series||[], yMax);
