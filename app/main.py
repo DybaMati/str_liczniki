@@ -13,6 +13,7 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy.exc import SQLAlchemyError
 
 from . import str_data
+from .ip_allowlist import register_ip_allowlist
 from .logutil import log_database_startup, setup_logging
 from .settings import get_settings
 
@@ -26,10 +27,14 @@ _LOG = logging.getLogger("str_liczniki")
 async def lifespan(app: FastAPI):
     setup_logging(BASE_DIR)
     log_database_startup()
+    s = get_settings()
+    templates.env.globals["site_brand"] = s.site_public_name
     yield
 
 
-app = FastAPI(title="PV / liczniki dashboard", lifespan=lifespan)
+app = FastAPI(title=get_settings().site_public_name, lifespan=lifespan)
+
+register_ip_allowlist(app, templates)
 
 
 @app.exception_handler(SQLAlchemyError)

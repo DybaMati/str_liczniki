@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>{{ title }} — PV / liczniki</title>
+  <title>{{ title }} — {{ site_brand|default('Panel odczytów') }}</title>
   <style>
     :root { color-scheme: dark; }
     *, *::before, *::after { box-sizing: border-box; }
@@ -45,7 +45,7 @@
 </head>
 <body>
   <nav class="nav">
-    <strong>PV / liczniki</strong>
+    <strong>{{ site_brand|default('Panel odczytów') }}</strong>
     <a href="/live" class="{{ 'active' if active == 'live' else '' }}">Na żywo</a>
     <a href="/chart" class="{{ 'active' if active == 'chart' else '' }}">Wykres mocy</a>
     <a href="/meters" class="{{ 'active' if active == 'meters' else '' }}">Zużycie kWh</a>

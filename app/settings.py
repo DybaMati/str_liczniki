@@ -48,6 +48,20 @@ class Settings(BaseSettings):
     # JSON: {"l1":"Tomek L1","l2":"Lonia L2"} — opcjonalnie nadpisuje domyślne nazwy liczników
     meter_labels_json: Optional[str] = None
 
+    # Nazwa w <title> i w menu (bez „PV” w etykiecie — nadpisz w .env)
+    site_public_name: str = "Panel odczytów"
+
+    # Lista dozwolonych IP / CIDR po przecinku, np. 127.0.0.1,192.168.1.0/24,10.10.0.5
+    # Puste = brak blokady (wszyscy). Ustawione = tylko pasujace adresy widza aplikacje.
+    allowed_client_ips: Optional[str] = None
+    # True gdy aplikacja za reverse proxy (nginx) i prawdziwy klient jest w X-Forwarded-For
+    trust_x_forwarded_for: bool = False
+
+    denied_page_title: str = "Wejście"
+    denied_page_message: str = (
+        "Czego tutaj szukasz?? Ciekawość to pierwszy stopień do piekła..."
+    )
+
     # Opcjonalnie: pełne SQL zamiast budowania z powyższych (multiline w .env jest niewygodne — użyj pliku)
     sql_live_file: Optional[str] = None
     sql_history_file: Optional[str] = None
