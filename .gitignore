@@ -6,3 +6,4 @@ __pycache__/
 venv/
 *.db
 pv_demo.db
+logs/

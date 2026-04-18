@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import logging
+from contextlib import asynccontextmanager
 from datetime import datetime
 from pathlib import Path
 from typing import Dict
@@ -8,14 +10,37 @@ from typing import Dict
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
+from sqlalchemy.exc import SQLAlchemyError
 
 from . import str_data
+from .logutil import log_database_startup, setup_logging
 from .settings import get_settings
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 
-app = FastAPI(title="PV / liczniki dashboard")
+_LOG = logging.getLogger("str_liczniki")
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    setup_logging(BASE_DIR)
+    log_database_startup()
+    yield
+
+
+app = FastAPI(title="PV / liczniki dashboard", lifespan=lifespan)
+
+
+@app.exception_handler(SQLAlchemyError)
+async def sqlalchemy_error_handler(request: Request, exc: SQLAlchemyError):
+    _LOG.exception("Błąd SQL przy %s %s", request.method, request.url.path)
+    orig = getattr(exc, "orig", None)
+    detail = str(orig) if orig is not None else str(exc)
+    return JSONResponse(
+        status_code=503,
+        content={"ok": False, "error": "błąd bazy danych", "detail": detail},
+    )
 
 METER_LABELS_DEFAULT = {
     "7": "Tomek L1",
