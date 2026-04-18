@@ -19,7 +19,7 @@ td{font-size:14px}
 <p style="color:#888;font-size:14px;margin:0 0 12px;max-width:72ch">
   <strong>Początek:</strong> pierwszy zapis <code>energia_kwh</code> w <strong>pierwszym dniu</strong> zakresu (od 00:00:00 tego dnia).
   <strong>Koniec:</strong> ostatni zapis w <strong>ostatnim dniu</strong> przed północą następnego dnia.
-  <strong>Zużycie</strong> = koniec − początek.
+  Ostatnia kolumna: <strong>różnica</strong> (koniec kWh − początek kWh).
 </p>
 
 <div class="pv-range">
@@ -41,7 +41,7 @@ td{font-size:14px}
       <th class="ts">czas pocz.</th>
       <th class="num">Koniec kWh</th>
       <th class="ts">czas koń.</th>
-      <th class="num">Zużycie kWh</th>
+      <th class="num">Różnica kWh<br><span style="font-size:10px;font-weight:400;color:#888">koniec − początek</span></th>
     </tr>
   </thead>
   <tbody id="m-body">
@@ -66,6 +66,12 @@ function fmtNum(x) {
 function fmtTs(t) {
   if (!t) return '—';
   return t;
+}
+function diffKwh(m) {
+  if (m.kwh != null && m.kwh !== '') return fmtNum(m.kwh);
+  if (m.end_kwh != null && m.start_kwh != null)
+    return fmtNum(Number(m.end_kwh) - Number(m.start_kwh));
+  return '—';
 }
 async function loadMeters() {
   const from = document.getElementById('m-from').value;
@@ -92,7 +98,7 @@ async function loadMeters() {
         '<td class="ts">' + fmtTs(m.start_ts) + '</td>' +
         '<td class="num">' + fmtNum(m.end_kwh) + '</td>' +
         '<td class="ts">' + fmtTs(m.end_ts) + '</td>' +
-        '<td class="num">' + fmtNum(m.kwh) + '</td>';
+        '<td class="num">' + diffKwh(m) + '</td>';
       body.appendChild(tr);
     });
     status.textContent = 'Pierwszy dzień: ' + j.from + ' · Ostatni dzień: ' + j.to;
