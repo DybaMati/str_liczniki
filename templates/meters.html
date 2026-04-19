@@ -75,10 +75,11 @@ table.meters-tbl{width:max-content;max-width:100%;table-layout:auto;border-colla
       <th class="num">Koniec kWh</th>
       <th>czas koń.</th>
       <th class="num">Różnica kWh<br><span style="font-size:10px;font-weight:400;color:#888">koniec − początek</span></th>
+      <th class="num">% zużycia<br><span style="font-size:10px;font-weight:400;color:#888">udział w okresie</span></th>
     </tr>
   </thead>
   <tbody id="m-body">
-    <tr><td colspan="7" style="color:#888">Wybierz zakres i kliknij Oblicz</td></tr>
+    <tr><td colspan="8" style="color:#888">Wybierz zakres i kliknij Oblicz</td></tr>
   </tbody>
 </table>
 </div>
@@ -123,6 +124,36 @@ function diffKwh(m) {
     return fmtNum(Number(m.end_kwh) - Number(m.start_kwh));
   return '—';
 }
+/** Wartość liczbowa różnicy kWh do sumy i procentów */
+function kwhNumeric(m) {
+  if (m.kwh != null && m.kwh !== '') return Number(m.kwh);
+  if (m.end_kwh != null && m.start_kwh != null)
+    return Number(m.end_kwh) - Number(m.start_kwh);
+  return null;
+}
+/** Udział w % sumy zużycia w okresie — format 00,0 % */
+function fmtPctShare(pct) {
+  if (pct == null || Number.isNaN(pct)) return '—';
+  var parts = Number(pct).toFixed(1).replace('.', ',').split(',');
+  var i = parts[0];
+  if (i.length === 1) i = '0' + i;
+  return i + ',' + parts[1] + ' %';
+}
+function percentShares(meters) {
+  var vals = meters.map(function(m) {
+    var v = kwhNumeric(m);
+    return v != null && Number.isFinite(v) ? v : null;
+  });
+  var total = 0;
+  vals.forEach(function(v) {
+    if (v != null) total += v;
+  });
+  if (total <= 0) return meters.map(function() { return null; });
+  return vals.map(function(v) {
+    if (v == null || !Number.isFinite(v)) return null;
+    return (v / total) * 100;
+  });
+}
 function fmtKwh2(n) {
   if (n == null || n === '' || Number.isNaN(Number(n))) return '—';
   return (Math.round(Number(n) * 100) / 100).toFixed(2).replace('.', ',') + ' kWh';
@@ -149,12 +180,13 @@ function renderBalance(j) {
 function hideBalance() {
   document.getElementById('m-balance-wrap').hidden = true;
 }
-function renderCards(meters) {
+function renderCards(meters, pcts) {
   var el = document.getElementById('m-cards');
   el.innerHTML = '';
-  meters.forEach(function(m) {
+  meters.forEach(function(m, idx) {
     var art = document.createElement('article');
     art.className = 'm-card';
+    var p = pcts && pcts[idx] != null ? fmtPctShare(pcts[idx]) : '—';
     art.innerHTML =
       '<h3>' + (m.label || '') + ' <span class="id">#' + (m.meter_id || '') + '</span></h3>' +
       '<dl>' +
@@ -163,6 +195,7 @@ function renderCards(meters) {
       '<dt>Koniec kWh</dt><dd class="numdd">' + fmtNum(m.end_kwh) + '</dd>' +
       '<dt>czas koń.</dt><dd class="ts-cell">' + fmtTsStackHtml(m.end_ts) + '</dd>' +
       '<dt>Różnica kWh</dt><dd class="numdd">' + diffKwh(m) + '</dd>' +
+      '<dt>% zużycia (okres)</dt><dd class="numdd">' + p + '</dd>' +
       '</dl>';
     el.appendChild(art);
   });
@@ -176,7 +209,7 @@ async function loadMeters() {
   if (!from || !to) return;
   if (to < from) {
     status.textContent = 'Data „Do” nie może być wcześniejsza niż „Od”.';
-    body.innerHTML = '<tr><td colspan="7" style="color:#fbbf24">Popraw zakres dat.</td></tr>';
+    body.innerHTML = '<tr><td colspan="8" style="color:#fbbf24">Popraw zakres dat.</td></tr>';
     cards.innerHTML = '';
     hideBalance();
     return;
@@ -189,21 +222,23 @@ async function loadMeters() {
       var d = j.detail;
       var errTxt = typeof d === 'string' ? d : (Array.isArray(d) && d[0] && d[0].msg ? d[0].msg : 'Błąd zapytania');
       status.textContent = errTxt;
-      body.innerHTML = '<tr><td colspan="7" style="color:#fbbf24">' + errTxt + '</td></tr>';
+      body.innerHTML = '<tr><td colspan="8" style="color:#fbbf24">' + errTxt + '</td></tr>';
       cards.innerHTML = '';
       hideBalance();
       return;
     }
     if (!j.ok || !j.meters) {
-      body.innerHTML = '<tr><td colspan="7" style="color:#f87171">Brak danych</td></tr>';
+      body.innerHTML = '<tr><td colspan="8" style="color:#f87171">Brak danych</td></tr>';
       cards.innerHTML = '';
       status.textContent = '';
       hideBalance();
       return;
     }
     body.innerHTML = '';
-    j.meters.forEach(function(m) {
+    var pcts = percentShares(j.meters);
+    j.meters.forEach(function(m, idx) {
       const tr = document.createElement('tr');
+      var pc = pcts && pcts[idx] != null ? fmtPctShare(pcts[idx]) : '—';
       tr.innerHTML =
         '<td>' + (m.label || '') + '</td>' +
         '<td>' + (m.meter_id || '') + '</td>' +
@@ -211,15 +246,16 @@ async function loadMeters() {
         '<td class="ts-cell">' + fmtTsStackHtml(m.start_ts) + '</td>' +
         '<td class="num">' + fmtNum(m.end_kwh) + '</td>' +
         '<td class="ts-cell">' + fmtTsStackHtml(m.end_ts) + '</td>' +
-        '<td class="num">' + diffKwh(m) + '</td>';
+        '<td class="num">' + diffKwh(m) + '</td>' +
+        '<td class="num">' + pc + '</td>';
       body.appendChild(tr);
     });
-    renderCards(j.meters);
+    renderCards(j.meters, pcts);
     status.textContent = 'Dni: ' + j.from + ' → ' + j.to;
     renderBalance(j);
   } catch (e) {
     status.textContent = 'Błąd: ' + e;
-    body.innerHTML = '<tr><td colspan="7" style="color:#f87171">Błąd sieci</td></tr>';
+    body.innerHTML = '<tr><td colspan="8" style="color:#f87171">Błąd sieci</td></tr>';
     cards.innerHTML = '';
     hideBalance();
   }
