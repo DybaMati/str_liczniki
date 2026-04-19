@@ -201,4 +201,21 @@ async def api_meters_delta(
                 "kwh": r.get("kwh_delta"),
             }
         )
-    return {"ok": True, "from": date_from, "to": date_to, "meters": items}
+    use_total = 0.0
+    for i in items:
+        if i.get("kwh") is not None:
+            use_total += float(i["kwh"])
+    pv_range = str_data.fetch_pv_kwh_delta_range(date_from, date_to)
+    pv_delta = pv_range.get("kwh_delta")
+    balance = None
+    if pv_delta is not None:
+        balance = float(pv_delta) - use_total
+    return {
+        "ok": True,
+        "from": date_from,
+        "to": date_to,
+        "meters": items,
+        "pv_production": pv_range,
+        "kwh_use_total": use_total,
+        "kwh_balance": balance,
+    }

@@ -35,6 +35,17 @@ table.meters-tbl{width:max-content;max-width:100%;table-layout:auto;border-colla
   .wrap-table{display:block}
   .m-cards{display:none !important}
 }
+
+.m-balance{margin-top:20px;padding:14px 16px;background:rgba(255,255,255,0.05);border:1px solid #333;border-radius:10px;max-width:100%}
+.m-balance h3{font-size:15px;font-weight:600;margin:0 0 8px;color:#ccc}
+.m-balance-period{font-size:12px;color:#888;margin:0 0 12px}
+.m-balance-rows{display:grid;gap:10px}
+.m-balance-row{display:flex;justify-content:space-between;align-items:baseline;gap:12px;font-size:14px}
+.m-balance-row span:first-child{color:#a3a3a3}
+.m-balance-row .val{font-variant-numeric:tabular-nums;font-weight:600}
+.m-balance-row .val.net-pos{color:#34d399}
+.m-balance-row .val.net-neg{color:#f87171}
+.m-balance-hint{font-size:11px;color:#666;margin:12px 0 0;line-height:1.45}
 </style>
 
 <h1 style="font-weight:600;font-size:clamp(1.1rem,4vw,1.2rem);margin:0 0 8px">Zużycie liczników (kWh)</h1>
@@ -72,6 +83,17 @@ table.meters-tbl{width:max-content;max-width:100%;table-layout:auto;border-colla
 </table>
 </div>
 <div id="m-cards" class="m-cards"></div>
+
+<section id="m-balance-wrap" class="m-balance" hidden>
+  <h3>Rozliczenie za wybrany zakres</h3>
+  <p class="m-balance-period" id="m-bal-period"></p>
+  <div class="m-balance-rows">
+    <div class="m-balance-row"><span>Zuzyte lacznie (L1+L2+L3)</span><span class="val" id="m-bal-use">—</span></div>
+    <div class="m-balance-row"><span>Wyprodukowano PV (sofar_kwh)</span><span class="val" id="m-bal-pv">—</span></div>
+    <div class="m-balance-row"><span>Bilans (produkcja − zuzycie)</span><span class="val" id="m-bal-net">—</span></div>
+  </div>
+  <p class="m-balance-hint" id="m-bal-hint"></p>
+</section>
 {% endblock %}
 {% block scripts %}
 <script>
@@ -100,6 +122,32 @@ function diffKwh(m) {
   if (m.end_kwh != null && m.start_kwh != null)
     return fmtNum(Number(m.end_kwh) - Number(m.start_kwh));
   return '—';
+}
+function fmtKwh2(n) {
+  if (n == null || n === '' || Number.isNaN(Number(n))) return '—';
+  return (Math.round(Number(n) * 100) / 100).toFixed(2).replace('.', ',') + ' kWh';
+}
+function renderBalance(j) {
+  var wrap = document.getElementById('m-balance-wrap');
+  var pv = j.pv_production || {};
+  wrap.hidden = false;
+  document.getElementById('m-bal-period').textContent = j.from + ' → ' + j.to;
+  document.getElementById('m-bal-use').textContent = fmtKwh2(j.kwh_use_total);
+  document.getElementById('m-bal-pv').textContent = fmtKwh2(pv.kwh_delta);
+  var netEl = document.getElementById('m-bal-net');
+  var net = j.kwh_balance;
+  netEl.textContent = fmtKwh2(net);
+  netEl.className = 'val' + (net != null && !Number.isNaN(Number(net))
+    ? (Number(net) > 0 ? ' net-pos' : (Number(net) < 0 ? ' net-neg' : ''))
+    : '');
+  var hint = '';
+  if (pv.start_ts && pv.end_ts) {
+    hint = 'PV: pierwszy odczyt w pierwszym dniu zakresu (' + pv.start_ts + '), ostatni w ostatnim dniu (' + pv.end_ts + ').';
+  }
+  document.getElementById('m-bal-hint').textContent = hint;
+}
+function hideBalance() {
+  document.getElementById('m-balance-wrap').hidden = true;
 }
 function renderCards(meters) {
   var el = document.getElementById('m-cards');
@@ -130,6 +178,7 @@ async function loadMeters() {
     status.textContent = 'Data „Do” nie może być wcześniejsza niż „Od”.';
     body.innerHTML = '<tr><td colspan="7" style="color:#fbbf24">Popraw zakres dat.</td></tr>';
     cards.innerHTML = '';
+    hideBalance();
     return;
   }
   status.textContent = 'Ładowanie…';
@@ -142,12 +191,14 @@ async function loadMeters() {
       status.textContent = errTxt;
       body.innerHTML = '<tr><td colspan="7" style="color:#fbbf24">' + errTxt + '</td></tr>';
       cards.innerHTML = '';
+      hideBalance();
       return;
     }
     if (!j.ok || !j.meters) {
       body.innerHTML = '<tr><td colspan="7" style="color:#f87171">Brak danych</td></tr>';
       cards.innerHTML = '';
       status.textContent = '';
+      hideBalance();
       return;
     }
     body.innerHTML = '';
@@ -165,10 +216,12 @@ async function loadMeters() {
     });
     renderCards(j.meters);
     status.textContent = 'Dni: ' + j.from + ' → ' + j.to;
+    renderBalance(j);
   } catch (e) {
     status.textContent = 'Błąd: ' + e;
     body.innerHTML = '<tr><td colspan="7" style="color:#f87171">Błąd sieci</td></tr>';
     cards.innerHTML = '';
+    hideBalance();
   }
 }
 initDates();

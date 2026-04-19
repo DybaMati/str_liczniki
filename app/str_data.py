@@ -465,3 +465,75 @@ def fetch_meters_delta(date_from: str, date_to: str) -> List[Dict[str, Any]]:
             }
         )
     return out
+
+
+def fetch_pv_kwh_delta_range(date_from: str, date_to: str) -> Dict[str, Any]:
+    """
+    Produkcja PV z sofar_kwh — ta sama logika co liczniki: pierwszy odczyt `produkcja`
+    w pierwszym dniu zakresu, ostatni w ostatnim dniu; różnica = wyprodukowane kWh.
+    """
+    df_start, df_end = _day_midnight_bounds(date_from)
+    dt_start, dt_end = _day_midnight_bounds(date_to)
+    try:
+        row = fetch_one(
+            text(
+                """
+                SELECT
+                  (
+                    SELECT produkcja FROM sofar_kwh
+                    WHERE `timestamp` >= :df_start AND `timestamp` < :df_end
+                    ORDER BY `timestamp` ASC LIMIT 1
+                  ) AS start_kwh,
+                  (
+                    SELECT `timestamp` FROM sofar_kwh
+                    WHERE `timestamp` >= :df_start AND `timestamp` < :df_end
+                    ORDER BY `timestamp` ASC LIMIT 1
+                  ) AS start_ts,
+                  (
+                    SELECT produkcja FROM sofar_kwh
+                    WHERE `timestamp` >= :dt_start AND `timestamp` < :dt_end
+                    ORDER BY `timestamp` DESC LIMIT 1
+                  ) AS end_kwh,
+                  (
+                    SELECT `timestamp` FROM sofar_kwh
+                    WHERE `timestamp` >= :dt_start AND `timestamp` < :dt_end
+                    ORDER BY `timestamp` DESC LIMIT 1
+                  ) AS end_ts
+                """
+            ),
+            {
+                "df_start": df_start,
+                "df_end": df_end,
+                "dt_start": dt_start,
+                "dt_end": dt_end,
+            },
+        )
+    except Exception:
+        return {
+            "start_kwh": None,
+            "start_ts": "",
+            "end_kwh": None,
+            "end_ts": "",
+            "kwh_delta": None,
+        }
+    empty = {
+        "start_kwh": None,
+        "start_ts": "",
+        "end_kwh": None,
+        "end_ts": "",
+        "kwh_delta": None,
+    }
+    if not row:
+        return empty
+    sk = row.get("start_kwh")
+    ek = row.get("end_kwh")
+    delta: Optional[float] = None
+    if sk is not None and ek is not None:
+        delta = float(ek) - float(sk)
+    return {
+        "start_kwh": float(sk) if sk is not None else None,
+        "start_ts": _fmt_ts(row.get("start_ts")),
+        "end_kwh": float(ek) if ek is not None else None,
+        "end_ts": _fmt_ts(row.get("end_ts")),
+        "kwh_delta": delta,
+    }
