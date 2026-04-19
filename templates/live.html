@@ -47,6 +47,24 @@ main { max-width: min(100%, 1600px); }
 .meter-skel .sk-chart{height:240px;margin-left:-12px;margin-right:-12px;width:calc(100% + 24px);border-radius:0;background:linear-gradient(90deg,#1c1c1c 0%,#252525 50%,#1c1c1c 100%);background-size:200% 100%;animation:sk-sh 1.2s ease-in-out infinite}
 .meter-skel .sk-badge{font-size:11px;color:#6b7280;margin-top:8px}
 @keyframes sk-sh{0%{background-position:200% 0}100%{background-position:-200% 0}}
+
+.kwh-meter-row{align-items:center}
+.kwh-meter-row b{align-self:flex-start;padding-top:4px}
+.kwh-ring-host{position:relative;width:min(100%,280px);height:52px;margin-left:auto;display:flex;align-items:center;justify-content:flex-end}
+.kwh-ring-svg{position:absolute;right:0;top:50%;transform:translateY(-50%);width:52px;height:52px;pointer-events:none}
+.kwh-ring-bg{opacity:1}
+.kwh-ring-fg{transition:stroke-dashoffset 0.45s ease}
+.kwh-ring-odo{position:relative;z-index:1;padding-right:58px;text-align:right}
+.kwh-today-hint{display:block;font-size:11px;color:#6b7280;margin-top:4px;font-weight:400}
+
+.live-balance{margin-top:22px;padding:14px 16px;background:rgba(255,255,255,0.05);border:1px solid #333;border-radius:10px;max-width:100%}
+.live-balance-title{font-size:14px;font-weight:600;margin:0 0 12px;color:#ccc}
+.live-balance-rows{display:grid;gap:10px}
+.live-balance-row{display:flex;justify-content:space-between;align-items:baseline;gap:12px;font-size:14px}
+.live-balance-row span:first-child{color:#a3a3a3}
+.live-balance-row .val{font-variant-numeric:tabular-nums;font-weight:600}
+.live-balance-row .val.net-pos{color:#34d399}
+.live-balance-row .val.net-neg{color:#f87171}
 </style>
 
 <h1 style="font-weight:600;font-size:1.2rem;margin:0 0 10px">Odczyt na zywo</h1>
@@ -60,6 +78,10 @@ main { max-width: min(100%, 1600px); }
       <div class="pv-card-upd" id="pv-pv-upd-wrap">ostatni pomiar PV<span class="d" id="pv-pv-d">-</span><span class="t" id="pv-pv-t">-</span></div>
     </div>
     <p class="pv-card-value" id="pv-pv">-</p>
+    <p style="font-size:12px;color:#888;margin:10px 0 0;line-height:1.45">
+      Produkcja kWh (sofar_kwh): <span id="pv-kwh-odo">-</span><br/>
+      <span style="font-size:11px;color:#666" id="pv-kwh-ts-line"></span>
+    </p>
   </div>
   <div class="pv-card">
     <p class="pv-card-label">Suma zuzycia (L1+L2+L3)</p>
@@ -97,6 +119,15 @@ main { max-width: min(100%, 1600px); }
     </div>
   </article>
 </div>
+
+<section class="live-balance" id="live-balance" aria-label="Porownanie dzis">
+  <h3 class="live-balance-title">Porownanie — dziś (<span id="today-label">-</span>)</h3>
+  <div class="live-balance-rows">
+    <div class="live-balance-row"><span>Zuzyte lacznie (L1+L2+L3)</span><span class="val" id="bal-use">-</span></div>
+    <div class="live-balance-row"><span>Wyprodukowano PV</span><span class="val" id="bal-pv">-</span></div>
+    <div class="live-balance-row"><span>Bilans (produkcja − zuzycie)</span><span class="val" id="bal-net">-</span></div>
+  </div>
+</section>
 {% endblock %}
 {% block scripts %}
 <script>
@@ -130,6 +161,10 @@ function fmtTsShort(s){
   if(!s) return '-';
   var m=String(s).match(/(\d{2}:\d{2}:\d{2})$/);
   return m ? m[1] : s;
+}
+function fmtKwhDelta(n){
+  if(n==null||Number.isNaN(n)) return '-';
+  return (Math.round(n*100)/100).toFixed(2).replace('.',',')+' kWh';
 }
 
 let _echartsLoaded = false;
@@ -184,13 +219,20 @@ function drawSparkline(container, series, yMax){
   requestAnimationFrame(function(){ try{ chart.resize(); }catch(e){} });
 }
 
-function renderMeters(cards, yMax){
+function renderMeters(cards, yMax, useTodaySum){
   const box=document.getElementById('meter-grid');
   disposeCharts();
   box.innerHTML='';
+  var sum = (typeof useTodaySum==='number' && !Number.isNaN(useTodaySum)) ? useTodaySum : 0;
+  var R=17;
+  var circ = 2*Math.PI*R;
   cards.forEach(function(c,idx){
     const id='spark-'+idx;
     const dt=splitDateTime(c.ts);
+    var kt = (c.kwh_today!=null && !Number.isNaN(c.kwh_today)) ? c.kwh_today : null;
+    var share = (sum>0 && kt!=null) ? Math.min(1, Math.max(0, kt/sum)) : 0;
+    var off = circ * (1-share);
+    var hint = (kt!=null) ? ('dziś: '+fmtKwhDelta(kt)) : '';
     const el=document.createElement('article');
     el.className='meter-card';
     el.innerHTML =
@@ -203,7 +245,16 @@ function renderMeters(cards, yMax){
       '  <div class="meter-row"><b>Wat</b><span>'+fmtW(c.wat_w)+'</span></div>'+
       '  <div class="spark-wrap"><b>Wat wykres</b><div class="spark" id="'+id+'"></div></div>'+
       '  <div class="meter-row"><b>Amper</b><span>'+fmtA(c.amp_a)+'</span></div>'+
-      '  <div class="meter-row"><b>Zuzycie licznik</b><span>'+fmtKOdo(c.kwh)+'</span></div>'+
+      '  <div class="meter-row kwh-meter-row">'+
+      '    <div><b>Zuzycie licznik</b>'+(hint?'<span class="kwh-today-hint">'+hint+'</span>':'')+'</div>'+
+      '    <div class="kwh-ring-host">'+
+      '      <svg class="kwh-ring-svg" viewBox="0 0 44 44" aria-hidden="true">'+
+      '        <circle class="kwh-ring-bg" cx="22" cy="22" r="'+R+'" fill="none" stroke="#333" stroke-width="3"/>'+
+      '        <circle class="kwh-ring-fg" cx="22" cy="22" r="'+R+'" fill="none" stroke="#3b82f6" stroke-width="3" stroke-linecap="round" transform="rotate(-90 22 22)" stroke-dasharray="'+circ.toFixed(3)+'" stroke-dashoffset="'+off.toFixed(3)+'"/>'+
+      '      </svg>'+
+      '      <div class="kwh-ring-odo">'+fmtKOdo(c.kwh)+'</div>'+
+      '    </div>'+
+      '  </div>'+
       '</div>';
     box.appendChild(el);
     drawSparkline(el.querySelector('#'+id), c.wat_series||[], yMax);
@@ -231,8 +282,21 @@ async function tick(){
     document.getElementById('pv-pv-t').textContent=pvDt.t;
     const sum=(j.l1_w||0)+(j.l2_w||0)+(j.l3_w||0);
     document.getElementById('pv-sum').textContent=fmtW(sum);
+    if(j.pv_kwh_total!=null && !Number.isNaN(j.pv_kwh_total)){
+      document.getElementById('pv-kwh-odo').innerHTML=fmtKOdo(j.pv_kwh_total);
+    }else{
+      document.getElementById('pv-kwh-odo').textContent='-';
+    }
+    document.getElementById('pv-kwh-ts-line').textContent=j.pv_kwh_ts ? ('Ostatni odczyt licznika kWh: '+j.pv_kwh_ts) : '';
+    document.getElementById('today-label').textContent=j.today_period_label||'-';
+    document.getElementById('bal-use').textContent=fmtKwhDelta(j.kwh_use_today);
+    document.getElementById('bal-pv').textContent=fmtKwhDelta(j.kwh_pv_today);
+    var netEl=document.getElementById('bal-net');
+    var net=j.kwh_balance_today;
+    netEl.textContent=fmtKwhDelta(net);
+    netEl.className='val'+(net!=null && !Number.isNaN(net) ? (net>0?' net-pos':(net<0?' net-neg':'')) : '');
     await ensureEcharts();
-    renderMeters(j.meter_cards||[], j.wat_y_max||500);
+    renderMeters(j.meter_cards||[], j.wat_y_max||500, j.kwh_use_today);
   }catch(e){
     if(loadingEl) loadingEl.style.display='none';
     st.textContent='Blad sieci: '+e;

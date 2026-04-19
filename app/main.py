@@ -150,6 +150,12 @@ async def api_live():
         "l3_w": float(row.get("l3_w") or 0),
         "meter_cards": row.get("meter_cards") or [],
         "wat_y_max": float(row.get("wat_y_max") or 500),
+        "pv_kwh_total": row.get("pv_kwh_total"),
+        "pv_kwh_ts": row.get("pv_kwh_ts") or "",
+        "kwh_use_today": row.get("kwh_use_today"),
+        "kwh_pv_today": row.get("kwh_pv_today"),
+        "kwh_balance_today": row.get("kwh_balance_today"),
+        "today_period_label": row.get("today_period_label") or "",
     }
 
 

@@ -1,10 +1,10 @@
 ﻿"""
-Odczyty pod schemat MySQL: sofar_data (PV), licznik_pomiary, licznik_energia.
+Odczyty pod schemat MySQL: sofar_data (PV), licznik_pomiary, licznik_energia, sofar_kwh.
 Liczniki: 7=Tomek, 8=Lonia, 9=Henia.
 """
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from math import ceil
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -111,8 +111,71 @@ def _fetch_meter_live_card(licznik_id: int, label: str) -> Dict[str, Any]:
         "amp_a": float(row.get("prad_a") or 0.0) if row else 0.0,
         "kwh": float(e_row.get("energia_kwh") or 0.0) if e_row else 0.0,
         "kwh_ts": _fmt_ts(e_row.get("ts")) if e_row and e_row.get("ts") else "",
+        "kwh_today": None,
         "wat_series": _fetch_meter_watts_series(licznik_id),
     }
+
+
+def _fetch_pv_kwh_latest() -> Tuple[Optional[float], str]:
+    row = fetch_one(
+        text(
+            """
+            SELECT `timestamp` AS ts, produkcja AS kwh
+            FROM sofar_kwh
+            ORDER BY `timestamp` DESC
+            LIMIT 1
+            """
+        )
+    )
+    if not row or row.get("kwh") is None:
+        return None, ""
+    return float(row["kwh"]), _fmt_ts(row.get("ts"))
+
+
+def _safe_pv_kwh_latest() -> Tuple[Optional[float], str]:
+    try:
+        return _fetch_pv_kwh_latest()
+    except Exception:
+        return None, ""
+
+
+def _safe_pv_kwh_delta_today() -> Optional[float]:
+    try:
+        return _fetch_pv_kwh_delta_today()
+    except Exception:
+        return None
+
+
+def _fetch_pv_kwh_delta_today() -> Optional[float]:
+    """Roznica produkcji kWh od polnocy (pierwszy minus ostatni odczyt kalendarzowej doby serwera)."""
+    row = fetch_one(
+        text(
+            """
+            SELECT
+              (
+                SELECT produkcja FROM sofar_kwh
+                WHERE `timestamp` >= CURDATE()
+                  AND `timestamp` < DATE_ADD(CURDATE(), INTERVAL 1 DAY)
+                ORDER BY `timestamp` ASC
+                LIMIT 1
+              ) AS start_kwh,
+              (
+                SELECT produkcja FROM sofar_kwh
+                WHERE `timestamp` >= CURDATE()
+                  AND `timestamp` < DATE_ADD(CURDATE(), INTERVAL 1 DAY)
+                ORDER BY `timestamp` DESC
+                LIMIT 1
+              ) AS end_kwh
+            """
+        )
+    )
+    if not row:
+        return None
+    sk = row.get("start_kwh")
+    ek = row.get("end_kwh")
+    if sk is None or ek is None:
+        return None
+    return float(ek) - float(sk)
 
 
 def fetch_live() -> Optional[Dict[str, Any]]:
@@ -162,6 +225,29 @@ def fetch_live() -> Optional[Dict[str, Any]]:
                 max_w = w
     # Wspolna skala Y dla porownywalnosci (krok 500W).
     wat_y_max = max(500.0, float(ceil(max_w / 500.0) * 500.0))
+
+    today_iso = date.today().isoformat()
+    try:
+        delta_rows = fetch_meters_delta(today_iso, today_iso)
+    except Exception:
+        delta_rows = []
+    deltas_by_mid = {str(r["meter_id"]): r.get("kwh_delta") for r in delta_rows}
+    today_use_sum = 0.0
+    for card in meter_cards:
+        kd = deltas_by_mid.get(str(card["id"]))
+        if kd is not None:
+            kt = float(kd)
+            card["kwh_today"] = kt
+            today_use_sum += kt
+        else:
+            card["kwh_today"] = None
+
+    pv_k_latest, pv_k_ts = _safe_pv_kwh_latest()
+    pv_today_kwh = _safe_pv_kwh_delta_today()
+    balance_today: Optional[float] = None
+    if pv_today_kwh is not None:
+        balance_today = float(pv_today_kwh) - today_use_sum
+
     return {
         "ts": t_show,
         "pv_ts": _fmt_ts(pv.get("ts")) if pv and pv.get("ts") else "",
@@ -174,6 +260,12 @@ def fetch_live() -> Optional[Dict[str, Any]]:
         "l3_w": float(m3["w"]) if m3 and m3.get("w") is not None else 0.0,
         "meter_cards": meter_cards,
         "wat_y_max": wat_y_max,
+        "pv_kwh_total": pv_k_latest,
+        "pv_kwh_ts": pv_k_ts,
+        "kwh_use_today": today_use_sum,
+        "kwh_pv_today": pv_today_kwh,
+        "kwh_balance_today": balance_today,
+        "today_period_label": today_iso,
     }
 
 
