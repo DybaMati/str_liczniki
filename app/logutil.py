@@ -13,7 +13,7 @@ from sqlalchemy import text
 
 _LOG = logging.getLogger("str_liczniki")
 
-_DATE_FMT = "%d.%m.%y %H:%M:%S"
+_DATE_FMT = "%d-%m-%y %H:%M:%S"
 _LOG_FMT = "%(asctime)s [%(levelname)s] %(name)s: %(message)s"
 
 _uvicorn_file_handlers_done = False
@@ -73,7 +73,7 @@ def setup_logging(project_root: Path) -> None:
 
         logging.getLogger("sqlalchemy.engine").setLevel(logging.WARNING)
 
-        _LOG.info("Logi: konsola + plik %s (czas: dd.mm.yy HH:MM:SS)", log_file)
+        _LOG.info("Logi: konsola + plik %s (czas: dd-mm-rr HH:MM:SS)", log_file)
 
     _attach_uvicorn_to_file(log_file, fmt)
 
