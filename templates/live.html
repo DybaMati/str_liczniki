@@ -70,7 +70,8 @@ main { max-width: min(100%, 1600px); }
     </div>
     <p class="pv-card-value" id="pv-pv">-</p>
     <p style="font-size:13px;color:#bbb;margin:10px 0 0;line-height:1.45">
-      Wyprodukowano (licznik kWh): <strong id="pv-kwh-plain" style="font-weight:600;color:#e5e5e5">-</strong><br/>
+      Produkcja dzisiaj: <strong id="pv-kwh-today" style="font-weight:600;color:#e5e5e5">-</strong><br/>
+      Wyprodukowano (całkowita produkcja): <strong id="pv-kwh-plain" style="font-weight:600;color:#e5e5e5">-</strong><br/>
       <span style="font-size:11px;color:#666" id="pv-kwh-ts-line"></span>
     </p>
   </div>
@@ -235,6 +236,7 @@ function renderMeters(cards, yMax){
       '  <div class="spark-wrap"><b>Wat wykres</b><div class="spark" id="'+id+'"></div></div>'+
       '  <div class="meter-row"><b>Amper</b><span>'+fmtA(c.amp_a)+'</span></div>'+
       '  <div class="meter-row"><b>Zuzycie licznik</b><span>'+fmtKOdo(c.kwh)+'</span></div>'+
+      '  <div class="meter-row"><b>Zuzyto dzisiaj</b><span>'+fmtKwhDelta(c.kwh_today)+'</span></div>'+
       '</div>';
     box.appendChild(el);
     drawSparkline(el.querySelector('#'+id), c.wat_series||[], yMax);
@@ -264,6 +266,8 @@ async function tick(){
     document.getElementById('pv-sum').textContent=fmtW(sum);
     var pvKwhEl=document.getElementById('pv-kwh-plain');
     if(pvKwhEl) pvKwhEl.textContent=(j.pv_kwh_total!=null && !Number.isNaN(j.pv_kwh_total)) ? fmtKwhPlain(j.pv_kwh_total) : '—';
+    var pvTodayEl=document.getElementById('pv-kwh-today');
+    if(pvTodayEl) pvTodayEl.textContent=fmtKwhDelta(j.kwh_pv_today);
     document.getElementById('pv-kwh-ts-line').textContent=j.pv_kwh_ts ? ('Ostatni odczyt licznika kWh: '+j.pv_kwh_ts) : '';
     document.getElementById('today-label').textContent=j.today_period_label||'-';
     document.getElementById('bal-use').textContent=fmtKwhDelta(j.kwh_use_today);

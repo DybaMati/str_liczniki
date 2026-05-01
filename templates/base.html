@@ -46,10 +46,10 @@
 <body>
   <nav class="nav">
     <strong>{{ site_brand|default('Panel odczytów') }}</strong>
+    <a href="/start" class="{{ 'active' if active == 'home' else '' }}">Start</a>
     <a href="/live" class="{{ 'active' if active == 'live' else '' }}">Na żywo</a>
     <a href="/chart" class="{{ 'active' if active == 'chart' else '' }}">Wykres mocy</a>
     <a href="/meters" class="{{ 'active' if active == 'meters' else '' }}">Zużycie kWh</a>
-    <a href="/" class="{{ 'active' if active == 'home' else '' }}">Start</a>
   </nav>
   <main>
     {% block content %}{% endblock %}

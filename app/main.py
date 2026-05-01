@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Dict
 
 from fastapi import FastAPI, HTTPException, Query, Request
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.exc import SQLAlchemyError
 
@@ -98,6 +98,11 @@ def _fmt_ts(val: object) -> str:
 
 @app.get("/", response_class=HTMLResponse)
 async def index(request: Request):
+    return RedirectResponse(url="/live", status_code=307)
+
+
+@app.get("/start", response_class=HTMLResponse)
+async def page_start(request: Request):
     return templates.TemplateResponse(
         "index.html",
         {"request": request, "title": "Start", "active": "home"},
