@@ -56,6 +56,13 @@ main { max-width: min(100%, 1600px); }
 .live-balance-row .val{font-variant-numeric:tabular-nums;font-weight:600}
 .live-balance-row .val.net-pos{color:#34d399}
 .live-balance-row .val.net-neg{color:#f87171}
+
+.conn-modal{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.55);backdrop-filter:blur(1px);z-index:9999;padding:16px}
+.conn-modal.show{display:flex}
+.conn-modal-box{width:min(94vw,440px);background:#181818;border:1px solid #3a3a3a;border-radius:12px;padding:16px 16px 14px;box-shadow:0 12px 34px rgba(0,0,0,.45)}
+.conn-modal-title{margin:0 0 6px;font-size:16px;font-weight:650;color:#f3f4f6}
+.conn-modal-msg{margin:0 0 10px;font-size:14px;color:#c4c4c4;line-height:1.45}
+.conn-modal-retry{font-size:13px;color:#93c5fd;font-weight:600}
 </style>
 
 <h1 style="font-weight:600;font-size:1.2rem;margin:0 0 10px">Odczyt na zywo</h1>
@@ -123,6 +130,14 @@ main { max-width: min(100%, 1600px); }
     <div class="live-balance-row"><span>Bilans (produkcja − zuzycie)</span><span class="val" id="bal-net">-</span></div>
   </div>
 </section>
+
+<div id="conn-modal" class="conn-modal" aria-hidden="true" role="dialog" aria-modal="true">
+  <div class="conn-modal-box">
+    <h3 class="conn-modal-title">Brak połączenia</h3>
+    <p class="conn-modal-msg" id="conn-modal-msg">Nie udało się pobrać danych z serwera.</p>
+    <div class="conn-modal-retry" id="conn-modal-retry">Ponowienie za 5 s...</div>
+  </div>
+</div>
 {% endblock %}
 {% block scripts %}
 <script>
@@ -254,12 +269,30 @@ function clearRetryCountdown(){
     _retryCountdownTimer = null;
   }
 }
+function showConnModal(message){
+  var modal=document.getElementById('conn-modal');
+  var msg=document.getElementById('conn-modal-msg');
+  if(msg) msg.textContent = message || 'Nie udało się pobrać danych z serwera.';
+  if(modal){
+    modal.classList.add('show');
+    modal.setAttribute('aria-hidden','false');
+  }
+}
+function hideConnModal(){
+  var modal=document.getElementById('conn-modal');
+  if(modal){
+    modal.classList.remove('show');
+    modal.setAttribute('aria-hidden','true');
+  }
+}
 function showRetryMessage(msg, seconds){
   const st=document.getElementById('pv-status');
+  const modalRetry=document.getElementById('conn-modal-retry');
   clearRetryCountdown();
   var left = seconds;
   function paint(){
     if(st) st.textContent = msg + ' Ponowienie za ' + left + ' s...';
+    if(modalRetry) modalRetry.textContent = 'Ponowienie za ' + left + ' s...';
   }
   paint();
   _retryCountdownTimer = setInterval(function(){
@@ -284,11 +317,13 @@ async function tick(){
     const j=await r.json();
     if(!j.ok){
       if(loadingEl) loadingEl.style.display='none';
+      showConnModal(j.error||'Brak danych w bazie.');
       showRetryMessage((j.error||'Brak danych w bazie') + '.', 5);
       document.getElementById('meter-grid').innerHTML='<p class="err">'+st.textContent+'</p>';
       scheduleNextTick(5);
       return;
     }
+    hideConnModal();
     clearRetryCountdown();
     if(loadingEl) loadingEl.style.display='none';
     st.textContent='Zrodlo: ostatni rekord z bazy (odswiezanie co 20 s)';
@@ -318,6 +353,7 @@ async function tick(){
     scheduleNextTick(20);
   }catch(e){
     if(loadingEl) loadingEl.style.display='none';
+    showConnModal('Brak połączenia z serwerem. Sprawdz siec lub serwer API.');
     showRetryMessage('Brak polaczenia z serwerem.', 5);
     var mg=document.getElementById('meter-grid');
     if(mg) mg.innerHTML='<p class="err">Nie udalo sie pobrac danych licznikow. '+e+'</p>';
