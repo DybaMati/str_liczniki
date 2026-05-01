@@ -169,6 +169,8 @@ function fmtKwhPlain(n){
 
 let _echartsLoaded = false;
 let _chartRefs = [];
+let _nextTickTimer = null;
+let _retryCountdownTimer = null;
 function disposeCharts(){
   _chartRefs.forEach(function(c){ try{c.dispose();}catch(e){} });
   _chartRefs = [];
@@ -246,6 +248,34 @@ function renderMeters(cards, yMax){
   });
 }
 
+function clearRetryCountdown(){
+  if(_retryCountdownTimer){
+    clearInterval(_retryCountdownTimer);
+    _retryCountdownTimer = null;
+  }
+}
+function showRetryMessage(msg, seconds){
+  const st=document.getElementById('pv-status');
+  clearRetryCountdown();
+  var left = seconds;
+  function paint(){
+    if(st) st.textContent = msg + ' Ponowienie za ' + left + ' s...';
+  }
+  paint();
+  _retryCountdownTimer = setInterval(function(){
+    left -= 1;
+    if(left <= 0){
+      clearRetryCountdown();
+      return;
+    }
+    paint();
+  }, 1000);
+}
+function scheduleNextTick(seconds){
+  if(_nextTickTimer) clearTimeout(_nextTickTimer);
+  _nextTickTimer = setTimeout(tick, seconds * 1000);
+}
+
 async function tick(){
   const st=document.getElementById('pv-status');
   const loadingEl=document.getElementById('pv-loading');
@@ -254,10 +284,12 @@ async function tick(){
     const j=await r.json();
     if(!j.ok){
       if(loadingEl) loadingEl.style.display='none';
-      st.textContent=j.error||'Brak danych w bazie';
+      showRetryMessage((j.error||'Brak danych w bazie') + '.', 5);
       document.getElementById('meter-grid').innerHTML='<p class="err">'+st.textContent+'</p>';
+      scheduleNextTick(5);
       return;
     }
+    clearRetryCountdown();
     if(loadingEl) loadingEl.style.display='none';
     st.textContent='Zrodlo: ostatni rekord z bazy (odswiezanie co 20 s)';
     document.getElementById('pv-time').textContent=fmtTs(j.time);
@@ -283,23 +315,19 @@ async function tick(){
     netEl.className='val'+(net!=null && !Number.isNaN(net) ? (net>0?' net-pos':(net<0?' net-neg':'')) : '');
     await ensureEcharts();
     renderMeters(j.meter_cards||[], j.wat_y_max||500);
+    scheduleNextTick(20);
   }catch(e){
     if(loadingEl) loadingEl.style.display='none';
-    st.textContent='Blad sieci: '+e;
+    showRetryMessage('Brak polaczenia z serwerem.', 5);
     var mg=document.getElementById('meter-grid');
     if(mg) mg.innerHTML='<p class="err">Nie udalo sie pobrac danych licznikow. '+e+'</p>';
+    scheduleNextTick(5);
   }
 }
 
-let _liveBoot=true;
-async function tickBoot(){
-  const st=document.getElementById('pv-status');
-  if(_liveBoot && st) st.textContent='Laczenie, pobieranie danych z API...';
-  await tick();
-  _liveBoot=false;
-}
-tickBoot();
-setInterval(tick,20000);
+const stBoot=document.getElementById('pv-status');
+if(stBoot) stBoot.textContent='Laczenie, pobieranie danych z API...';
+tick();
 window.addEventListener('resize', function(){ _chartRefs.forEach(function(c){ try{c.resize();}catch(e){} }); });
 </script>
 {% endblock %}
