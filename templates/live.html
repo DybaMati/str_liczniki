@@ -78,6 +78,9 @@ main { max-width: min(100%, 1600px); }
   <div class="pv-card">
     <p class="pv-card-label">Suma zuzycia (L1+L2+L3)</p>
     <p class="pv-card-value" id="pv-sum">-</p>
+    <p style="font-size:12px;color:#bbb;margin:8px 0 0;line-height:1.4">
+      Zuzyto dzisiaj: <strong id="pv-use-today" style="font-weight:600;color:#e5e5e5">-</strong>
+    </p>
     <p style="font-size:11px;color:#666;margin:6px 0 0">Najnowszy czas w systemie: <span id="pv-time">-</span></p>
   </div>
 </div>
@@ -264,6 +267,8 @@ async function tick(){
     document.getElementById('pv-pv-t').textContent=pvDt.t;
     const sum=(j.l1_w||0)+(j.l2_w||0)+(j.l3_w||0);
     document.getElementById('pv-sum').textContent=fmtW(sum);
+    var useTodayEl=document.getElementById('pv-use-today');
+    if(useTodayEl) useTodayEl.textContent=fmtKwhDelta(j.kwh_use_today);
     var pvKwhEl=document.getElementById('pv-kwh-plain');
     if(pvKwhEl) pvKwhEl.textContent=(j.pv_kwh_total!=null && !Number.isNaN(j.pv_kwh_total)) ? fmtKwhPlain(j.pv_kwh_total) : '—';
     var pvTodayEl=document.getElementById('pv-kwh-today');
