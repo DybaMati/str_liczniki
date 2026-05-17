@@ -177,6 +177,13 @@ async def api_fv_pdf(inv_id: str):
     return FileResponse(path, media_type="application/pdf", filename=name)
 
 
+@app.delete("/api/fv/{inv_id}")
+async def api_fv_delete(inv_id: str):
+    if not fv_store.delete_invoice(inv_id):
+        raise HTTPException(status_code=404, detail="Brak FV o podanym id")
+    return {"ok": True, "deleted": inv_id}
+
+
 @app.post("/api/fv/upload")
 async def api_fv_upload(file: UploadFile = File(...)):
     if not file.filename or not file.filename.lower().endswith(".pdf"):

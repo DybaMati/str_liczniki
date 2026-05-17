@@ -1,56 +1,69 @@
 {% extends "base.html" %}
 {% block content %}
 <style>
-.fv-intro{color:#888;font-size:clamp(13px,3.2vw,14px);margin:0 0 14px;line-height:1.45}
-.fv-upload{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:18px;padding:12px 14px;background:rgba(255,255,255,0.04);border:1px solid #333;border-radius:10px}
-.fv-upload input[type=file]{font-size:13px;color:#ccc;max-width:100%}
-.fv-upload button{background:#3b82f6;color:#fff;border:none;padding:8px 16px;border-radius:6px;cursor:pointer;font-size:13px;min-height:44px}
+.fv-page{font-size:15px;line-height:1.5;color:#e8e8e8}
+.fv-intro{color:#b0b0b0;font-size:15px;margin:0 0 16px;line-height:1.5;max-width:52rem}
+.fv-upload{display:flex;flex-wrap:wrap;gap:12px;align-items:center;margin-bottom:20px;padding:14px 16px;background:rgba(255,255,255,0.05);border:1px solid #404040;border-radius:10px}
+.fv-upload input[type=file]{font-size:15px;color:#ddd;max-width:100%}
+.fv-upload button{background:#3b82f6;color:#fff;border:none;padding:10px 18px;border-radius:6px;cursor:pointer;font-size:15px;font-weight:600;min-height:44px}
 .fv-upload button:hover{background:#2563eb}
 .fv-upload button:disabled{opacity:0.5;cursor:not-allowed}
-#fv-upload-status{flex:1;min-width:140px;font-size:13px;color:#888}
-.fv-layout{display:grid;gap:16px}
-@media (min-width:900px){.fv-layout{grid-template-columns:260px 1fr}}
-.fv-list h2{font-size:15px;font-weight:600;margin:0 0 10px;color:#ccc}
-.fv-list ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
-.fv-list li button{width:100%;text-align:left;background:rgba(255,255,255,0.05);border:1px solid #333;color:#e5e5e5;padding:10px 12px;border-radius:8px;cursor:pointer;font-size:13px}
-.fv-list li button:hover{border-color:#555}
-.fv-list li button.active{background:rgba(59,130,246,0.2);border-color:#3b82f6}
-.fv-list .meta{display:block;font-size:11px;color:#888;margin-top:4px}
-.fv-panel{background:rgba(255,255,255,0.04);border:1px solid #333;border-radius:10px;padding:14px 16px;margin-bottom:14px}
-.fv-panel h3{font-size:14px;font-weight:600;margin:0 0 10px;color:#93c5fd}
-.fv-head{display:flex;flex-wrap:wrap;justify-content:space-between;gap:8px 16px;margin-bottom:12px}
-.fv-head .nr{font-size:15px;font-weight:600}
-.fv-head .okres{color:#aaa;font-size:13px}
-.fv-kpi{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:14px}
-.fv-kpi .box{background:#1a1a1a;border:1px solid #2a2a2a;border-radius:8px;padding:10px 12px}
-.fv-kpi .lbl{font-size:11px;color:#888;text-transform:uppercase;letter-spacing:0.04em}
-.fv-kpi .val{font-size:18px;font-weight:600;font-variant-numeric:tabular-nums;margin-top:4px}
-.fv-kpi .val.stala{color:#fbbf24}
-.fv-kpi .val.zmienna{color:#60a5fa}
-.fv-kpi .val.pay{color:#34d399}
-.fv-tbl{width:100%;border-collapse:collapse;font-size:13px;margin-top:6px}
-.fv-tbl th,.fv-tbl td{border:1px solid #333;padding:6px 8px;text-align:left;vertical-align:top}
-.fv-tbl th{color:#888;font-weight:500;font-size:11px}
-.fv-tbl .num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
-.fv-tbl tr.stala td{background:rgba(251,191,36,0.06)}
-.fv-tbl tr.zmienna td{background:rgba(96,165,250,0.06)}
-.fv-warn{color:#fbbf24;font-size:13px;margin:8px 0}
-.fv-err{color:#f87171;font-size:13px}
-.fv-pdf-link{display:inline-block;margin-top:8px;font-size:13px}
-.fv-empty{color:#666;font-size:14px;padding:20px 0}
+#fv-upload-status{flex:1;min-width:140px;font-size:14px;color:#aaa}
+.fv-layout{display:grid;gap:18px}
+@media (min-width:900px){.fv-layout{grid-template-columns:300px 1fr}}
+.fv-list h2{font-size:17px;font-weight:600;margin:0 0 12px;color:#ddd}
+.fv-list ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}
+.fv-list-row{display:flex;gap:6px;align-items:stretch}
+.fv-list-row .fv-open{flex:1;min-width:0;text-align:left;background:rgba(255,255,255,0.06);border:1px solid #404040;color:#f0f0f0;padding:12px 14px;border-radius:8px;cursor:pointer;font-size:14px;line-height:1.35}
+.fv-list-row .fv-open:hover{border-color:#666}
+.fv-list-row .fv-open.active{background:rgba(59,130,246,0.22);border-color:#3b82f6}
+.fv-list .meta{display:block;font-size:13px;color:#9ca3af;margin-top:5px;font-weight:400}
+.fv-trash{flex:0 0 auto;width:44px;min-height:44px;padding:0;border-radius:8px;border:1px solid #5c3030;background:rgba(248,113,113,0.12);color:#fca5a5;font-size:18px;line-height:1;cursor:pointer}
+.fv-trash:hover{background:rgba(248,113,113,0.25);border-color:#f87171;color:#fff}
+.fv-trash:disabled{opacity:0.4;cursor:not-allowed}
+.fv-panel{background:rgba(255,255,255,0.05);border:1px solid #404040;border-radius:10px;padding:16px 18px;margin-bottom:16px}
+.fv-panel h3{font-size:16px;font-weight:600;margin:0 0 12px;color:#93c5fd;line-height:1.3}
+.fv-head{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:flex-start;gap:12px 20px;margin-bottom:14px}
+.fv-head .nr{font-size:18px;font-weight:600;color:#fafafa}
+.fv-head .okres{color:#c4c4c4;font-size:15px;line-height:1.4}
+.fv-head-actions{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.fv-btn-del{padding:8px 14px;border-radius:8px;border:1px solid #7f3d3d;background:rgba(248,113,113,0.15);color:#fca5a5;font-size:14px;font-weight:600;cursor:pointer}
+.fv-btn-del:hover{background:rgba(248,113,113,0.28);color:#fff}
+.fv-kpi{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:16px}
+.fv-kpi .box{background:#1c1c1c;border:1px solid #333;border-radius:8px;padding:12px 14px}
+.fv-kpi .lbl{font-size:12px;color:#9ca3af;text-transform:uppercase;letter-spacing:0.05em;font-weight:600}
+.fv-kpi .val{font-size:21px;font-weight:700;font-variant-numeric:tabular-nums;margin-top:6px;color:#f5f5f5}
+.fv-kpi .val.stala{color:#fcd34d}
+.fv-kpi .val.zmienna{color:#7dd3fc}
+.fv-kpi .val.pay{color:#6ee7b7}
+.fv-tbl{width:100%;border-collapse:collapse;font-size:14px;margin-top:8px}
+.fv-tbl th,.fv-tbl td{border:1px solid #404040;padding:8px 10px;text-align:left;vertical-align:middle}
+.fv-tbl th{color:#a3a3a3;font-weight:600;font-size:13px;background:rgba(0,0,0,0.2)}
+.fv-tbl td{color:#ececec}
+.fv-tbl .num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap;font-size:15px}
+.fv-tbl tr.stala td{background:rgba(251,191,36,0.08)}
+.fv-tbl tr.zmienna td{background:rgba(96,165,250,0.08)}
+.fv-note{font-size:14px;color:#a3a3a3;margin:10px 0 0;line-height:1.45}
+.fv-warn{color:#fcd34d;font-size:14px;margin:10px 0}
+.fv-err{color:#f87171;font-size:14px}
+.fv-pdf-link{display:inline-block;margin-top:6px;font-size:14px;font-weight:500}
+.fv-meta-small{font-size:13px;color:#888;margin:4px 0 0}
+.fv-empty{color:#777;font-size:15px;padding:20px 0}
+.wrap-fv-tbl{overflow-x:auto;-webkit-overflow-scrolling:touch}
 </style>
 
-<h1 style="font-weight:600;font-size:clamp(1.1rem,4vw,1.2rem);margin:0 0 8px">Rozliczenie FV energii</h1>
+<div class="fv-page">
+<h1 style="font-weight:700;font-size:clamp(1.25rem,4vw,1.45rem);margin:0 0 10px;color:#fafafa">Rozliczenie FV energii</h1>
 <p class="fv-intro">
-  Wgraj PDF faktury ENERGA. Plik trafia do <code>data/fv_do_przeanalizowania</code>.
-  Poniżej widać te same pozycje co na FV, sumę <strong>stałych</strong> i <strong>zmiennych</strong>
-  oraz podział na 3 liczniki wg zużycia kWh z bazy w tym okresie.
+  Wgraj PDF faktury ENERGA. Pozycje jak na FV, suma <strong>stałych</strong> i <strong>zmiennych</strong>,
+  podział na 3 liczniki. Z listy możesz usunąć FV (kosz) — znika też plik PDF.
 </p>
 
 <div class="fv-upload">
   <input type="file" id="fv-file" accept="application/pdf,.pdf" />
   <button type="button" id="fv-send">Wgraj FV</button>
   <span id="fv-upload-status"></span>
+
 </div>
 
 <div class="fv-layout">
@@ -61,6 +74,7 @@
   <div class="fv-detail" id="fv-detail">
     <p class="fv-empty">Wybierz fakturę z listy lub wgraj nową.</p>
   </div>
+</div>
 </div>
 
 <script>
@@ -102,21 +116,59 @@
     }).join('');
   }
 
+  function deleteInvoice(id, label) {
+    var msg = 'Usunąć fakturę z listy i skasować PDF?\n\n' + (label || id);
+    if (!confirm(msg)) return Promise.resolve(false);
+    return fetch('/api/fv/' + encodeURIComponent(id), { method: 'DELETE' })
+      .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+      .then(function (res) {
+        if (!res.ok || !res.j.ok) {
+          alert((res.j && res.j.detail) || 'Nie udało się usunąć');
+          return false;
+        }
+        if (activeId === id) {
+          activeId = null;
+          detail.innerHTML = '<p class="fv-empty">Faktura usunięta. Wybierz inną lub wgraj nową.</p>';
+        }
+        loadList(null);
+        return true;
+      })
+      .catch(function () {
+        alert('Błąd połączenia przy usuwaniu');
+        return false;
+      });
+  }
+
+  function bindTrashButtons() {
+    listUl.querySelectorAll('.fv-trash').forEach(function (btn) {
+      btn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        var id = btn.getAttribute('data-del');
+        var label = btn.getAttribute('data-label') || '';
+        deleteInvoice(id, label);
+      });
+    });
+  }
+
   function renderDetail(inv) {
     var p = inv.parsed || {};
     var pod = p.podsumowanie || {};
     var sp = inv.split;
+    var title = p.nr_faktury || inv.original_name || 'Faktura';
     var html = '';
 
     html += '<div class="fv-head"><div>';
-    html += '<span class="nr">' + esc(p.nr_faktury || 'Faktura') + '</span>';
-    if (p.nr_klienta) html += ' <span style="color:#888;font-size:12px">klient ' + esc(p.nr_klienta) + '</span>';
+    html += '<span class="nr">' + esc(title) + '</span>';
+    if (p.nr_klienta) html += '<br><span class="fv-meta-small">Nr klienta: ' + esc(p.nr_klienta) + '</span>';
     html += '</div>';
-    html += '<div class="okres">Okres: <strong>' + esc(p.okres_od) + ' – ' + esc(p.okres_do) + '</strong>';
-    if (p.kwh_rozliczeniowe != null) html += ' · kWh na FV: <strong>' + p.kwh_rozliczeniowe + '</strong>';
+    html += '<div class="fv-head-actions">';
+    html += '<button type="button" class="fv-btn-del" id="fv-del-detail" data-id="' + esc(inv.id) + '" data-label="' + esc(title) + '">Usuń (kosz)</button>';
     html += '</div></div>';
+    html += '<div class="okres" style="margin-bottom:8px">Okres: <strong>' + esc(p.okres_od) + ' – ' + esc(p.okres_do) + '</strong>';
+    if (p.kwh_rozliczeniowe != null) html += ' · kWh na FV: <strong>' + p.kwh_rozliczeniowe + '</strong>';
+    html += '</div>';
     html += '<a class="fv-pdf-link" href="/api/fv/' + esc(inv.id) + '/pdf" target="_blank" rel="noopener">Pobierz zapisany PDF</a>';
-    html += '<p style="font-size:11px;color:#666;margin:4px 0 0">Wgrano: ' + esc(inv.uploaded_at) + '</p>';
+    html += '<p class="fv-meta-small">Wgrano: ' + esc(inv.uploaded_at) + '</p>';
 
     if (!p.ok) {
       html += '<p class="fv-err">Nie udało się odczytać pełnej FV.';
@@ -135,27 +187,27 @@
     html += '</div>';
 
     html += '<div class="fv-panel"><h3>1. Rozliczenie sprzedaży energii pobranej</h3>';
-    html += '<table class="fv-tbl"><thead><tr><th>Rodzaj opłaty</th><th>Okres</th><th class="num">Ilość</th><th>Jm</th><th class="num">Cena netto</th><th class="num">Wartość netto</th><th class="num">VAT</th></tr></thead><tbody>';
+    html += '<div class="wrap-fv-tbl"><table class="fv-tbl"><thead><tr><th>Rodzaj opłaty</th><th>Okres</th><th class="num">Ilość</th><th>Jm</th><th class="num">Cena netto</th><th class="num">Wartość netto</th><th class="num">VAT</th></tr></thead><tbody>';
     html += chargeRows(p.sprzedaz);
-    html += '</tbody></table></div>';
+    html += '</tbody></table></div></div>';
 
     html += '<div class="fv-panel"><h3>2. Rozliczenie dystrybucji energii elektrycznej</h3>';
-    html += '<table class="fv-tbl"><thead><tr><th>Rodzaj opłaty</th><th>Okres</th><th class="num">Ilość</th><th>Jm</th><th class="num">Cena netto</th><th class="num">Wartość netto</th><th class="num">VAT</th></tr></thead><tbody>';
+    html += '<div class="wrap-fv-tbl"><table class="fv-tbl"><thead><tr><th>Rodzaj opłaty</th><th>Okres</th><th class="num">Ilość</th><th>Jm</th><th class="num">Cena netto</th><th class="num">Wartość netto</th><th class="num">VAT</th></tr></thead><tbody>';
     html += chargeRows(p.dystrybucja);
-    html += '</tbody></table>';
-    html += '<p style="font-size:12px;color:#888;margin:8px 0 0">Razem netto (1+2): <strong>' + plMoney(pod.razem_netto) + '</strong>';
-    html += ' · VAT: <strong>' + plMoney(pod.kwota_vat) + '</strong></p></div>';
+    html += '</tbody></table></div>';
+    html += '<p class="fv-note">Razem netto (1+2): <strong style="color:#eee">' + plMoney(pod.razem_netto) + '</strong>';
+    html += ' · VAT: <strong style="color:#eee">' + plMoney(pod.kwota_vat) + '</strong></p></div>';
 
     if (inv.split_error) {
       html += '<p class="fv-warn">Podział na liczniki: ' + esc(inv.split_error) + '</p>';
     } else if (sp && sp.meters) {
       html += '<div class="fv-panel"><h3>Podział na liczniki (wg zużycia kWh z bazy)</h3>';
-      html += '<p style="font-size:12px;color:#888;margin:0 0 10px">Okres bazy: ' + esc(sp.okres_od_iso) + ' … ' + esc(sp.okres_do_iso);
+      html += '<p class="fv-note">Okres bazy: ' + esc(sp.okres_od_iso) + ' … ' + esc(sp.okres_do_iso);
       html += ' · Suma kWh liczników: <strong>' + plNum(sp.kwh_liczniki_suma, 1) + '</strong>';
       if (sp.kwh_fv != null) html += ' · kWh na FV: <strong>' + sp.kwh_fv + '</strong>';
-      html += '</p><table class="fv-tbl"><thead><tr><th>Licznik</th><th class="num">kWh</th><th class="num">Udział</th><th class="num">Stałe netto</th><th class="num">Zmienne netto</th><th class="num">Razem netto</th><th class="num">Razem brutto</th></tr></thead><tbody>';
+      html += '</p><div class="wrap-fv-tbl"><table class="fv-tbl"><thead><tr><th>Licznik</th><th class="num">kWh</th><th class="num">Udział</th><th class="num">Stałe netto</th><th class="num">Zmienne netto</th><th class="num">Razem netto</th><th class="num">Razem brutto</th></tr></thead><tbody>';
       sp.meters.forEach(function (m) {
-        html += '<tr><td>' + esc(m.label) + '</td>';
+        html += '<tr><td><strong>' + esc(m.label) + '</strong></td>';
         html += '<td class="num">' + (m.kwh != null ? plNum(m.kwh, 1) : '—') + '</td>';
         html += '<td class="num">' + plNum(m.udzial_pct, 1) + '%</td>';
         html += '<td class="num">' + plNum(m.stala_netto) + '</td>';
@@ -163,10 +215,16 @@
         html += '<td class="num">' + plNum(m.razem_netto) + '</td>';
         html += '<td class="num"><strong>' + plNum(m.razem_brutto) + '</strong></td></tr>';
       });
-      html += '</tbody></table></div>';
+      html += '</tbody></table></div></div>';
     }
 
     detail.innerHTML = html;
+    var delBtn = document.getElementById('fv-del-detail');
+    if (delBtn) {
+      delBtn.addEventListener('click', function () {
+        deleteInvoice(delBtn.getAttribute('data-id'), delBtn.getAttribute('data-label'));
+      });
+    }
   }
 
   function loadList(selectId) {
@@ -181,16 +239,22 @@
         }
         listUl.innerHTML = items.map(function (it) {
           var active = it.id === selectId || (!selectId && it.id === activeId);
+          var title = it.nr_faktury || it.original_name || 'FV';
           var meta = esc(it.okres_od) + ' – ' + esc(it.okres_do);
           if (it.do_zaplaty != null) meta += ' · ' + plMoney(it.do_zaplaty);
-          return '<li><button type="button" data-id="' + esc(it.id) + '"' + (active ? ' class="active"' : '') + '>' +
-            esc(it.nr_faktury || it.original_name) + '<span class="meta">' + meta + '</span></button></li>';
+          return '<li class="fv-list-row">' +
+            '<button type="button" class="fv-open' + (active ? ' active' : '') + '" data-id="' + esc(it.id) + '">' +
+            esc(title) + '<span class="meta">' + meta + '</span></button>' +
+            '<button type="button" class="fv-trash" data-del="' + esc(it.id) + '" data-label="' + esc(title) + '" title="Usuń">&#128465;</button>' +
+            '</li>';
         }).join('');
-        listUl.querySelectorAll('button[data-id]').forEach(function (btn) {
+        listUl.querySelectorAll('.fv-open').forEach(function (btn) {
           btn.addEventListener('click', function () { selectInvoice(btn.getAttribute('data-id')); });
         });
+        bindTrashButtons();
         if (selectId) selectInvoice(selectId);
-        else if (!activeId && items[0]) selectInvoice(items[0].id);
+        else if (activeId && items.some(function (x) { return x.id === activeId; })) selectInvoice(activeId);
+        else if (items[0]) selectInvoice(items[0].id);
       })
       .catch(function () {
         listUl.innerHTML = '<li class="fv-err">Nie można załadować listy FV</li>';
@@ -199,7 +263,7 @@
 
   function selectInvoice(id) {
     activeId = id;
-    listUl.querySelectorAll('button').forEach(function (b) {
+    listUl.querySelectorAll('.fv-open').forEach(function (b) {
       b.classList.toggle('active', b.getAttribute('data-id') === id);
     });
     detail.innerHTML = '<p class="fv-empty">Ładowanie…</p>';

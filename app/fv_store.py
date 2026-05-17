@@ -79,6 +79,32 @@ def pdf_path(inv_id: str) -> Optional[Path]:
     return p if p.is_file() else None
 
 
+def delete_invoice(inv_id: str) -> bool:
+    """Usuwa FV z indeksu i plik PDF z dysku."""
+    if not inv_id or not re.match(r"^[a-f0-9]{8,32}$", inv_id):
+        return False
+    rows = _load_index()
+    kept: List[Dict[str, Any]] = []
+    removed: Optional[Dict[str, Any]] = None
+    for r in rows:
+        if r.get("id") == inv_id:
+            removed = r
+        else:
+            kept.append(r)
+    if removed is None:
+        return False
+    _save_index(kept)
+    stored = removed.get("stored_name") or ""
+    if stored:
+        p = FV_DIR / stored
+        try:
+            if p.is_file():
+                p.unlink()
+        except OSError:
+            pass
+    return True
+
+
 def compute_split(
     parsed: Dict[str, Any],
     meters: List[Dict[str, Any]],
