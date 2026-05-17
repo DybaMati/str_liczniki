@@ -136,6 +136,11 @@ async def page_meters(request: Request):
     )
 
 
+@app.get("/api/ping")
+async def api_ping():
+    return {"ok": True}
+
+
 @app.get("/api/live")
 async def api_live():
     row = str_data.fetch_live()

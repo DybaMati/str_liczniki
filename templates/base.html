@@ -20,24 +20,65 @@
     .nav {
       display: flex;
       flex-wrap: wrap;
-      gap: 8px 12px;
+      gap: 8px 10px;
       align-items: center;
-      padding: 12px max(14px, env(safe-area-inset-right)) 12px max(14px, env(safe-area-inset-left));
+      justify-content: flex-start;
+      padding: 10px max(14px, env(safe-area-inset-right)) 10px max(14px, env(safe-area-inset-left));
       background: #1a1a1a;
       border-bottom: 1px solid #333;
     }
-    .nav strong { margin-right: 4px; font-size: clamp(0.9rem, 3vw, 1rem); }
-    .nav a { padding: 8px 10px; border-radius: 6px; font-size: clamp(0.85rem, 3vw, 0.95rem); }
+    .nav-main {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px 10px;
+      flex: 1 1 auto;
+      min-width: 0;
+    }
+    .nav strong { margin-right: 2px; font-size: clamp(0.9rem, 3vw, 1rem); white-space: nowrap; }
+    .nav a { padding: 8px 10px; border-radius: 6px; font-size: clamp(0.85rem, 3vw, 0.95rem); white-space: nowrap; }
     .nav a.active { background: rgba(59, 130, 246, 0.25); color: #fff; }
+    .nav-status {
+      margin-left: auto;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 2px;
+      font-size: clamp(10px, 2.7vw, 12px);
+      color: #b8b8b8;
+      line-height: 1.25;
+      font-variant-numeric: tabular-nums;
+      text-align: right;
+      max-width: 100%;
+    }
+    .nav-status-line { white-space: nowrap; }
+    .nav-tcp-ok { color: #34d399; }
+    .nav-tcp-bad { color: #f87171; }
+    .nav-tcp-wait { color: #fbbf24; }
     main {
       padding: 12px max(12px, env(safe-area-inset-right)) 28px max(12px, env(safe-area-inset-left));
       max-width: 1200px;
       margin: 0 auto;
       width: 100%;
     }
-    @media (max-width: 480px) {
-      .nav { gap: 6px 8px; padding-top: 10px; padding-bottom: 10px; }
+    @media (max-width: 720px) {
+      .nav { gap: 6px 8px; }
+      .nav-main { gap: 6px 8px; }
       .nav a { padding: 6px 8px; }
+      .nav-status {
+        flex: 1 0 100%;
+        flex-direction: row;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+        align-items: center;
+        gap: 4px 8px;
+        margin-left: 0;
+        padding-top: 4px;
+        border-top: 1px solid #2a2a2a;
+      }
+    }
+    @media (max-width: 480px) {
+      .nav { padding-top: 8px; padding-bottom: 8px; }
     }
     .err { color: #f87171; margin-top: 8px; font-size: 14px; }
   </style>
@@ -45,15 +86,146 @@
 </head>
 <body>
   <nav class="nav">
-    <strong>{{ site_brand|default('Panel odczytów') }}</strong>
-    <a href="/start" class="{{ 'active' if active == 'home' else '' }}">Start</a>
-    <a href="/live" class="{{ 'active' if active == 'live' else '' }}">Na żywo</a>
-    <a href="/chart" class="{{ 'active' if active == 'chart' else '' }}">Wykres mocy</a>
-    <a href="/meters" class="{{ 'active' if active == 'meters' else '' }}">Zużycie kWh</a>
+    <div class="nav-main">
+      <strong>{{ site_brand|default('Panel odczytów') }}</strong>
+      <a href="/start" class="{{ 'active' if active == 'home' else '' }}">Start</a>
+      <a href="/live" class="{{ 'active' if active == 'live' else '' }}">Na żywo</a>
+      <a href="/chart" class="{{ 'active' if active == 'chart' else '' }}">Wykres mocy</a>
+      <a href="/meters" class="{{ 'active' if active == 'meters' else '' }}">Zużycie kWh</a>
+    </div>
+    <div class="nav-status" id="nav-status" aria-live="polite">
+      <span class="nav-status-line" id="nav-clock">--</span>
+      <span class="nav-status-line" id="nav-tcp">TCP: sprawdzanie...</span>
+      <span class="nav-status-line" id="nav-traffic">0,00 MB</span>
+    </div>
   </nav>
   <main>
     {% block content %}{% endblock %}
   </main>
+  <script>
+  (function () {
+    var clockEl = document.getElementById('nav-clock');
+    var tcpEl = document.getElementById('nav-tcp');
+    var trafficEl = document.getElementById('nav-traffic');
+    if (!clockEl || !tcpEl || !trafficEl) return;
+
+    var totalBytes = 0;
+    var tcpOk = null;
+    var tcpBusy = false;
+
+    function pad2(n) { return (n < 10 ? '0' : '') + n; }
+
+    function fmtClock(d) {
+      var dd = pad2(d.getDate());
+      var mm = pad2(d.getMonth() + 1);
+      var yy = pad2(d.getFullYear() % 100);
+      var hh = pad2(d.getHours());
+      var mi = pad2(d.getMinutes());
+      var ss = pad2(d.getSeconds());
+      return dd + '-' + mm + '-' + yy + ' ' + hh + ':' + mi + ':' + ss;
+    }
+
+    function fmtTraffic(bytes) {
+      if (!bytes || bytes < 0) bytes = 0;
+      var gb = bytes / (1024 * 1024 * 1024);
+      if (gb >= 1) {
+        return gb.toFixed(3).replace('.', ',') + ' GB';
+      }
+      var mb = bytes / (1024 * 1024);
+      return mb.toFixed(2).replace('.', ',') + ' MB';
+    }
+
+    function addBytes(n) {
+      if (n > 0 && isFinite(n)) totalBytes += n;
+    }
+
+    function updateTraffic() {
+      trafficEl.textContent = fmtTraffic(totalBytes);
+    }
+
+    function setTcp(ok, checking) {
+      tcpEl.classList.remove('nav-tcp-ok', 'nav-tcp-bad', 'nav-tcp-wait');
+      if (checking) {
+        tcpEl.textContent = 'TCP: ...';
+        tcpEl.classList.add('nav-tcp-wait');
+        return;
+      }
+      if (ok) {
+        tcpEl.textContent = 'TCP: OK';
+        tcpEl.classList.add('nav-tcp-ok');
+      } else {
+        tcpEl.textContent = 'TCP: brak';
+        tcpEl.classList.add('nav-tcp-bad');
+      }
+    }
+
+    function tickClock() {
+      clockEl.textContent = fmtClock(new Date());
+      updateTraffic();
+    }
+
+    function checkTcp() {
+      if (tcpBusy) return;
+      tcpBusy = true;
+      if (tcpOk === null) setTcp(false, true);
+      var ctrl = new AbortController();
+      var timer = setTimeout(function () { ctrl.abort(); }, 4000);
+      fetch('/api/ping', { cache: 'no-store', signal: ctrl.signal })
+        .then(function (res) {
+          clearTimeout(timer);
+          if (!res.ok) throw new Error('bad');
+          return res.json();
+        })
+        .then(function (data) {
+          tcpOk = !!(data && data.ok);
+          setTcp(tcpOk, false);
+        })
+        .catch(function () {
+          tcpOk = false;
+          setTcp(false, false);
+        })
+        .finally(function () { tcpBusy = false; });
+    }
+
+    var origFetch = window.fetch.bind(window);
+    window.fetch = function (input, init) {
+      init = init || {};
+      var url = typeof input === 'string' ? input : (input && input.url) || '';
+      var sameOrigin = url.charAt(0) === '/' || url.indexOf(window.location.origin) === 0;
+
+      if (sameOrigin && init.body) {
+        try {
+          if (typeof init.body === 'string') {
+            addBytes(new Blob([init.body]).size);
+          } else if (init.body instanceof Blob) {
+            addBytes(init.body.size);
+          }
+        } catch (e) { /* ignore */ }
+      }
+
+      return origFetch(input, init).then(function (res) {
+        if (!sameOrigin) return res;
+        var cl = res.headers.get('content-length');
+        if (cl) {
+          addBytes(parseInt(cl, 10) || 0);
+          updateTraffic();
+          return res;
+        }
+        if (!/\/api\//.test(url)) return res;
+        return res.clone().arrayBuffer().then(function (buf) {
+          addBytes(buf.byteLength);
+          updateTraffic();
+          return res;
+        });
+      });
+    };
+
+    tickClock();
+    setInterval(tickClock, 1000);
+    checkTcp();
+    setInterval(checkTcp, 2000);
+  })();
+  </script>
   {% block scripts %}{% endblock %}
 </body>
 </html>
