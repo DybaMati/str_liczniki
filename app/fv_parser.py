@@ -190,18 +190,18 @@ def parse_energa_pdf_text(text: str) -> Dict[str, Any]:
 
 def extract_pdf_text(pdf_bytes: bytes) -> str:
     try:
-        import pdfplumber
+        from pypdf import PdfReader
     except ImportError as e:
-        raise RuntimeError("Brak pdfplumber — zainstaluj: pip install pdfplumber") from e
+        raise RuntimeError("Brak pypdf — zainstaluj: pip install pypdf") from e
 
-    parts: List[str] = []
     import io
 
-    with pdfplumber.open(io.BytesIO(pdf_bytes)) as pdf:
-        for page in pdf.pages:
-            t = page.extract_text() or ""
-            if t.strip():
-                parts.append(t)
+    parts: List[str] = []
+    reader = PdfReader(io.BytesIO(pdf_bytes))
+    for page in reader.pages:
+        t = page.extract_text() or ""
+        if t.strip():
+            parts.append(t)
     return "\n".join(parts)
 
 

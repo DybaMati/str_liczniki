@@ -164,19 +164,20 @@
         margin-left: 0;
         padding-top: 6px;
         border-top: 1px solid #2a2a2a;
-        gap: 4px 6px;
-        grid-template-columns: auto auto minmax(0, 1fr);
-        grid-template-areas: "tcp traffic clock";
+        gap: 4px 8px;
+        grid-template-columns: 1fr minmax(0, max-content);
+        grid-template-areas:
+          "tcp clock"
+          "traffic traffic";
       }
       #nav-tcp { justify-self: start; }
-      #nav-traffic { justify-self: center; }
+      #nav-traffic { justify-self: start; }
       .nav-clock {
         justify-self: end;
-        font-size: clamp(11px, 3.4vw, 15px);
+        font-size: clamp(12px, 3.8vw, 16px);
         color: #e5e5e5;
         letter-spacing: 0.02em;
       }
-      .nav-pill-data .nav-pill-label { display: none; }
       .nav-pill { font-size: 10px; padding: 3px 7px; gap: 4px; }
       .nav-pill-dot { width: 6px; height: 6px; }
       .nav-pill-data .nav-pill-val { font-size: 11px; }

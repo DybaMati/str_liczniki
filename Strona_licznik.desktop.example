@@ -1,0 +1,8 @@
+[Desktop Entry]
+Name=Strona liczników
+Comment=Panel odczytów PV / liczniki
+Exec=lxterminal --hold -e "/home/pi/str_liczniki/start.sh"
+Icon=utilities-terminal
+Terminal=false
+Type=Application
+Categories=Network;

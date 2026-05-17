@@ -192,7 +192,13 @@ async def api_fv_upload(file: UploadFile = File(...)):
             _meter_labels(),
         )
     except RuntimeError as e:
-        raise HTTPException(status_code=500, detail=str(e)) from e
+        msg = str(e)
+        if "pypdf" in msg.lower():
+            raise HTTPException(
+                status_code=503,
+                detail="Moduł FV (pypdf) nie jest zainstalowany na serwerze. Uruchom: bash install-pi.sh",
+            ) from e
+        raise HTTPException(status_code=500, detail=msg) from e
     except Exception as e:
         _LOG.exception("Błąd zapisu FV")
         raise HTTPException(status_code=500, detail=str(e)) from e

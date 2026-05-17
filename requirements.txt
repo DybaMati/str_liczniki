@@ -8,4 +8,5 @@ sqlalchemy>=2.0.36
 python-dotenv>=1.0.1
 pydantic-settings>=2.6.0
 pymysql>=1.1.0
-pdfplumber>=0.11.0
+# pypdf — tekst z PDF bez Pillow (działa na ARM/Pi; pdfplumber wymaga kompilacji Pillow)
+pypdf>=4.0.0
