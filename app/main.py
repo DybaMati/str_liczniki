@@ -12,7 +12,7 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Redirect
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.exc import SQLAlchemyError
 
-from . import str_data
+from . import fv_store, str_data
 from .ip_allowlist import register_ip_allowlist
 from .logutil import log_database_startup, setup_logging
 from .settings import get_settings
