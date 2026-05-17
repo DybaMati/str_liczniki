@@ -154,6 +154,7 @@
     @media (max-width: 720px) {
       .nav { gap: 6px 8px; }
       .nav-brand { display: none; }
+      .nav-desktop-only { display: none; }
       .nav-main { gap: 6px 8px; width: 100%; }
       .nav a { padding: 6px 8px; }
       .nav-status {
@@ -195,6 +196,7 @@
       <a href="/live" class="{{ 'active' if active == 'live' else '' }}">Na żywo</a>
       <a href="/chart" class="{{ 'active' if active == 'chart' else '' }}">Wykres mocy</a>
       <a href="/meters" class="{{ 'active' if active == 'meters' else '' }}">Zużycie kWh</a>
+      <a href="/fv" class="nav-desktop-only {{ 'active' if active == 'fv' else '' }}">Rozliczenie FV</a>
     </div>
     <div class="nav-status" id="nav-status" aria-live="polite">
       <span class="nav-pill nav-tcp-wait" id="nav-tcp">

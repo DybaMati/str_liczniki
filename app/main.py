@@ -7,8 +7,8 @@ from datetime import date, datetime
 from pathlib import Path
 from typing import Dict
 
-from fastapi import FastAPI, HTTPException, Query, Request
-from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
+from fastapi import FastAPI, File, HTTPException, Query, Request, UploadFile
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.exc import SQLAlchemyError
 
@@ -123,6 +123,19 @@ async def page_chart(request: Request):
     )
 
 
+@app.get("/fv", response_class=HTMLResponse)
+async def page_fv(request: Request):
+    return templates.TemplateResponse(
+        "fv.html",
+        {
+            "request": request,
+            "title": "Rozliczenie FV",
+            "active": "fv",
+            "meter_labels": _meter_labels(),
+        },
+    )
+
+
 @app.get("/meters", response_class=HTMLResponse)
 async def page_meters(request: Request):
     return templates.TemplateResponse(
@@ -139,6 +152,51 @@ async def page_meters(request: Request):
 @app.get("/api/ping")
 async def api_ping():
     return {"ok": True}
+
+
+@app.get("/api/fv")
+async def api_fv_list():
+    return {"ok": True, "invoices": fv_store.list_invoices()}
+
+
+@app.get("/api/fv/{inv_id}")
+async def api_fv_get(inv_id: str):
+    row = fv_store.get_invoice(inv_id)
+    if not row:
+        raise HTTPException(status_code=404, detail="Brak FV o podanym id")
+    return {"ok": True, "invoice": row}
+
+
+@app.get("/api/fv/{inv_id}/pdf")
+async def api_fv_pdf(inv_id: str):
+    path = fv_store.pdf_path(inv_id)
+    if not path:
+        raise HTTPException(status_code=404, detail="Brak pliku PDF")
+    row = fv_store.get_invoice(inv_id)
+    name = (row or {}).get("original_name") or "faktura.pdf"
+    return FileResponse(path, media_type="application/pdf", filename=name)
+
+
+@app.post("/api/fv/upload")
+async def api_fv_upload(file: UploadFile = File(...)):
+    if not file.filename or not file.filename.lower().endswith(".pdf"):
+        raise HTTPException(status_code=400, detail="Wymagany plik PDF")
+    raw = await file.read()
+    if len(raw) > 12 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="Plik za duży (max 12 MB)")
+    try:
+        row = fv_store.save_upload(
+            file.filename,
+            raw,
+            str_data.fetch_meters_delta,
+            _meter_labels(),
+        )
+    except RuntimeError as e:
+        raise HTTPException(status_code=500, detail=str(e)) from e
+    except Exception as e:
+        _LOG.exception("Błąd zapisu FV")
+        raise HTTPException(status_code=500, detail=str(e)) from e
+    return {"ok": True, "invoice": row}
 
 
 @app.get("/api/live")

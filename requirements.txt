@@ -1,4 +1,5 @@
 fastapi>=0.115.0
+python-multipart>=0.0.9
 # Używamy zwykłego uvicorn (bez [standard]), żeby na ARM/Pi nie kompilować httptools/uvloop.
 # Pełne opcje: uvicorn[standard] + w systemie: python3-dev build-essential
 uvicorn>=0.32.0
@@ -7,3 +8,4 @@ sqlalchemy>=2.0.36
 python-dotenv>=1.0.1
 pydantic-settings>=2.6.0
 pymysql>=1.1.0
+pdfplumber>=0.11.0

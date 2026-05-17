@@ -7,3 +7,5 @@ venv/
 *.db
 pv_demo.db
 logs/
+data/fv_do_przeanalizowania/
+data/fv_index.json
