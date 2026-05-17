@@ -46,11 +46,11 @@
     .nav-status {
       margin-left: auto;
       display: grid;
-      gap: 6px 10px;
+      gap: 6px 12px;
       max-width: 100%;
-      text-align: right;
       align-items: center;
-      grid-template-columns: 1fr auto;
+      width: min(100%, 520px);
+      grid-template-columns: 1fr minmax(0, max-content);
       grid-template-areas:
         "tcp clock"
         "traffic traffic";
@@ -61,10 +61,12 @@
       justify-self: end;
       font-variant-numeric: tabular-nums;
       white-space: nowrap;
-      line-height: 1.15;
-      color: #e5e5e5;
-      font-size: 20.8px;
+      line-height: 1.1;
+      color: #f8fafc;
+      font-size: clamp(1.2rem, 2.5vw, 2.05rem);
       font-weight: 600;
+      letter-spacing: 0.03em;
+      max-width: 100%;
     }
     #nav-traffic { grid-area: traffic; justify-self: start; }
     .nav-pill {
@@ -130,21 +132,10 @@
     .nav-pill-data .nav-pill-val { color: #f3f4f6; font-size: 12px; }
     @media (min-width: 721px) {
       .nav-status {
-        grid-template-columns: auto auto;
-        grid-template-areas:
-          "clock clock"
-          "tcp traffic";
-        justify-items: end;
-        gap: 8px 10px;
+        gap: 8px 14px;
         padding: 2px 0;
-      }
-      #nav-tcp { justify-self: end; }
-      #nav-traffic { justify-self: end; }
-      .nav-clock {
-        font-size: 2.05rem;
-        font-weight: 600;
-        color: #f8fafc;
-        letter-spacing: 0.04em;
+        width: auto;
+        min-width: 280px;
       }
       .nav-pill {
         font-size: 12px;
@@ -168,13 +159,24 @@
       .nav-status {
         flex: 1 0 100%;
         width: 100%;
+        min-width: 0;
         margin-left: 0;
         padding-top: 6px;
         border-top: 1px solid #2a2a2a;
-        gap: 5px 8px;
+        gap: 4px 6px;
+        grid-template-columns: auto auto minmax(0, 1fr);
+        grid-template-areas: "tcp traffic clock";
       }
-      .nav-clock { font-size: 19.2px; }
-      .nav-pill { font-size: 10px; padding: 3px 8px; gap: 5px; }
+      #nav-tcp { justify-self: start; }
+      #nav-traffic { justify-self: center; }
+      .nav-clock {
+        justify-self: end;
+        font-size: clamp(11px, 3.4vw, 15px);
+        color: #e5e5e5;
+        letter-spacing: 0.02em;
+      }
+      .nav-pill-data .nav-pill-label { display: none; }
+      .nav-pill { font-size: 10px; padding: 3px 7px; gap: 4px; }
       .nav-pill-dot { width: 6px; height: 6px; }
       .nav-pill-data .nav-pill-val { font-size: 11px; }
     }
@@ -200,11 +202,11 @@
         <span class="nav-pill-label">TCP</span>
         <span class="nav-pill-val" id="nav-tcp-text">...</span>
       </span>
-      <div class="nav-clock" id="nav-clock">--</div>
       <span class="nav-pill nav-pill-data" id="nav-traffic">
         <span class="nav-pill-label">Ruch</span>
         <span class="nav-pill-val" id="nav-traffic-val">0,00 MB</span>
       </span>
+      <div class="nav-clock" id="nav-clock">--</div>
     </div>
   </nav>
   <main>
