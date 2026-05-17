@@ -23,27 +23,77 @@ def _pl_num(s: str) -> float:
     return float(s.strip().replace(" ", "").replace(",", "."))
 
 
+def _norm_line(s: str) -> str:
+    return re.sub(r"\s+", " ", (s or "").strip())
+
+
+_WSK_PL_RE = re.compile(r"\d{1,3}(?: \d{3})*,\d{2}|\d+,\d{2}")
+_METER_HEAD_RE = re.compile(
+    r"G(\d+)\s+(\d+)\s+(\w)\s+(\d{2}\.\d{2}\.\d{4})\s+(\d{2}\.\d{2}\.\d{4})\s+(.+?)\s+(\w)\s*$",
+    re.I,
+)
+
+
+def _pl_num_ilosc(s: str) -> float:
+    """Ilość kWh: 260,325 albo z PDF czasem '260 325' (= 260,325)."""
+    s = _norm_line(s)
+    m = re.match(r"^(\d{1,3}) (\d{3})$", s)
+    if m:
+        return float(f"{m.group(1)}.{m.group(2)}")
+    return _pl_num(s)
+
+
+def _parse_meter_tail(tail: str) -> Optional[Tuple[float, float, float]]:
+    wsk = list(_WSK_PL_RE.finditer(tail))
+    if len(wsk) >= 2:
+        wsk_od = _pl_num(wsk[0].group(0))
+        wsk_do = _pl_num(wsk[1].group(0))
+        rest = tail[wsk[1].end() :].strip()
+        ilosc_m = re.match(r"^([\d\s,]+)", rest)
+        if ilosc_m:
+            return wsk_od, wsk_do, _pl_num_ilosc(ilosc_m.group(1))
+    tokens = re.findall(r"\d{1,3}(?: \d{3})*,\d{2}|\d+(?:,\d+)?|\d{1,3}(?: \d{3})+", tail)
+    if len(tokens) >= 3:
+        return _pl_num(tokens[-3]), _pl_num(tokens[-2]), _pl_num_ilosc(tokens[-1])
+    return None
+
+
 def _parse_meter_line(line: str) -> Optional[Dict[str, Any]]:
-    """Linia G11 11863735 L 31.03.2026 30.04.2026 wsk_od wsk_do ilosc Z."""
-    m = re.match(
-        r"^G(\d+)\s+(\d+)\s+(\w)\s+"
-        r"(\d{2}\.\d{2}\.\d{4})\s+(\d{2}\.\d{2}\.\d{4})\s+"
-        r"([\d\s,]+)\s+([\d\s,]+)\s+([\d,]+)\s+(\w)",
-        line.strip(),
-    )
+    """Linia G11 … wsk_od wsk_do ilosc Z — poprawnie ze spacjami w tysiącach."""
+    m = _METER_HEAD_RE.match(_norm_line(line))
     if not m:
         return None
+    nums = _parse_meter_tail(m.group(6))
+    if not nums:
+        return None
+    wsk_od, wsk_do, ilosc = nums
     return {
         "grupa_taryfowa": f"G{m.group(1)}",
         "nr_licznika": m.group(2),
-        "strefa": m.group(3),
+        "strefa": m.group(3).upper(),
         "data_odczytu_od": m.group(4),
         "data_odczytu_do": m.group(5),
-        "wskazanie_od": _pl_num(m.group(6)),
-        "wskazanie_do": _pl_num(m.group(7)),
-        "ilosc_kwh": _pl_num(m.group(8)),
-        "rodzaj_odczytu": m.group(9),
+        "wskazanie_od": wsk_od,
+        "wskazanie_do": wsk_do,
+        "ilosc_kwh": ilosc,
+        "rodzaj_odczytu": m.group(7).upper(),
     }
+
+
+def _find_meter_after_markers(text: str, markers: Tuple[str, ...]) -> Optional[Dict[str, Any]]:
+    """Szuka linii licznika po nagłówku sekcji (PDF bywa rozbity na wiele linii)."""
+    upper = text.upper()
+    for marker in markers:
+        idx = upper.find(marker.upper())
+        if idx < 0:
+            continue
+        chunk = _norm_line(text[idx : idx + 1200])
+        m = _METER_HEAD_RE.search(chunk)
+        if m:
+            parsed = _parse_meter_line(m.group(0))
+            if parsed:
+                return parsed
+    return None
 
 
 def _line_after_marker(lines: List[str], marker: str, predicate) -> Optional[str]:
@@ -88,10 +138,20 @@ def _parse_dane_energii_energa(text: str) -> Dict[str, Any]:
         re.I,
     )
 
-    ln_pob = _line_after_marker(lines, "Pobranie energii", lambda s: s.startswith("G"))
-    ln_wpr = _line_after_marker(lines, "Wprowadzenie energii", lambda s: s.startswith("G"))
+    ln_pob = _line_after_marker(lines, "Pobranie energii", lambda s: s.upper().startswith("G"))
+    ln_wpr = _line_after_marker(lines, "Wprowadzenie energii", lambda s: s.upper().startswith("G"))
     pobranie = _parse_meter_line(ln_pob) if ln_pob else None
     wprowadzenie = _parse_meter_line(ln_wpr) if ln_wpr else None
+    if pobranie is None:
+        pobranie = _find_meter_after_markers(
+            text,
+            ("Pobranie energii", "Pobrana energia", "pobranie energii czynnej", "DANE ODCZYTOWE"),
+        )
+    if wprowadzenie is None:
+        wprowadzenie = _find_meter_after_markers(
+            text,
+            ("Wprowadzenie energii", "Wprowadzona energia", "oddanie energii", "wprowadzenie energii"),
+        )
     saldo_dod = _parse_saldo_line(text, "Suma godzinowych sald dodatnich")
     saldo_ujem = _parse_saldo_line(text, "Suma godzinowych sald ujemnych")
 
@@ -102,8 +162,10 @@ def _parse_dane_energii_energa(text: str) -> Dict[str, Any]:
         text,
         re.I,
     )
-    depozyt_stan_m = re.search(r"Stan depozytu\s+\d{2}\.\d{2}\.\d{4}\s+([\d,]+)\s*zł", text, re.I)
-    depozyt_razem_m = re.search(r"Razem depozyt\s+([\d,]+)\s*zł", text, re.I)
+    depozyt_stan_m = re.search(
+        r"Stan depozytu\s+\d{2}\.\d{2}\.\d{4}\s+([\d\s,]+)\s*zł", text, re.I
+    )
+    depozyt_razem_m = re.search(r"Razem depozyt\s+([\d\s,]+)\s*zł", text, re.I)
 
     wiersze: List[Dict[str, Any]] = []
     if pobranie:

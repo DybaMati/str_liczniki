@@ -44,27 +44,132 @@ def _safe_filename(name: str) -> str:
     return base[:120] or "faktura.pdf"
 
 
+def _summary_from_parsed(parsed: Dict[str, Any]) -> Dict[str, Any]:
+    pod = parsed.get("podsumowanie") or {}
+    return {
+        "nr_faktury": parsed.get("nr_faktury"),
+        "okres_od": parsed.get("okres_od"),
+        "okres_do": parsed.get("okres_do"),
+        "do_zaplaty": pod.get("do_zaplaty_brutto"),
+    }
+
+
+def _read_pdf_bytes(row: Dict[str, Any]) -> Optional[bytes]:
+    stored = row.get("stored_name") or ""
+    if not stored:
+        return None
+    p = FV_DIR / stored
+    if not p.is_file():
+        return None
+    return p.read_bytes()
+
+
+def compute_invoice(
+    row: Dict[str, Any],
+    meters_delta_fn,
+    meter_labels: Dict[str, str],
+    pv_delta_fn=None,
+) -> Dict[str, Any]:
+    """PDF → parse → liczniki L1–L3 + PV z bazy → podział (za każdym razem na świeżo)."""
+    pdf_bytes = _read_pdf_bytes(row)
+    if not pdf_bytes:
+        return {
+            **row,
+            "parsed": {"ok": False, "errors": ["Brak pliku PDF na dysku."]},
+            "split": None,
+            "split_error": "Brak pliku PDF",
+            "comparison": None,
+            "meter_readings": [],
+        }
+
+    parsed = parse_energa_pdf_bytes(pdf_bytes)
+    split: Optional[Dict[str, Any]] = None
+    split_error: Optional[str] = None
+    comparison: Optional[Dict[str, Any]] = None
+    meter_items: List[Dict[str, Any]] = []
+
+    if parsed.get("ok") and parsed.get("okres_od_iso") and parsed.get("okres_do_iso"):
+        try:
+            raw_meters = meters_delta_fn(parsed["okres_od_iso"], parsed["okres_do_iso"])
+            for r in raw_meters:
+                mid = str(r.get("meter_id", ""))
+                meter_items.append(
+                    {
+                        "meter_id": mid,
+                        "label": meter_labels.get(mid, mid),
+                        "kwh": r.get("kwh_delta"),
+                        "start_kwh": r.get("start_kwh"),
+                        "end_kwh": r.get("end_kwh"),
+                        "start_ts": r.get("start_ts"),
+                        "end_ts": r.get("end_ts"),
+                    }
+                )
+            split = compute_split(parsed, meter_items, meter_labels)
+            pv_range = None
+            if pv_delta_fn:
+                try:
+                    pv_range = pv_delta_fn(parsed["okres_od_iso"], parsed["okres_do_iso"])
+                except Exception:
+                    pv_range = None
+            comparison = build_comparison(parsed, meter_items, pv_range)
+        except Exception as e:
+            split_error = str(e)
+    elif parsed.get("ok"):
+        split_error = "Brak dat okresu — nie można pobrać zużycia liczników."
+
+    summary = _summary_from_parsed(parsed)
+    return {
+        "id": row.get("id"),
+        "original_name": row.get("original_name"),
+        "uploaded_at": row.get("uploaded_at"),
+        "nr_faktury": summary.get("nr_faktury"),
+        "okres_od": summary.get("okres_od"),
+        "okres_do": summary.get("okres_do"),
+        "do_zaplaty": summary.get("do_zaplaty"),
+        "parsed": parsed,
+        "split": split,
+        "split_error": split_error,
+        "comparison": comparison,
+        "meter_readings": meter_items,
+    }
+
+
 def list_invoices() -> List[Dict[str, Any]]:
     rows = _load_index()
     out = []
     for r in sorted(rows, key=lambda x: x.get("uploaded_at", ""), reverse=True):
-        out.append(
-            {
-                "id": r.get("id"),
-                "original_name": r.get("original_name"),
-                "uploaded_at": r.get("uploaded_at"),
-                "nr_faktury": (r.get("parsed") or {}).get("nr_faktury"),
-                "okres_od": (r.get("parsed") or {}).get("okres_od"),
-                "okres_do": (r.get("parsed") or {}).get("okres_do"),
-                "do_zaplaty": ((r.get("parsed") or {}).get("podsumowanie") or {}).get(
-                    "do_zaplaty_brutto"
-                ),
-            }
-        )
+        item = {
+            "id": r.get("id"),
+            "original_name": r.get("original_name"),
+            "uploaded_at": r.get("uploaded_at"),
+            "nr_faktury": r.get("nr_faktury"),
+            "okres_od": r.get("okres_od"),
+            "okres_do": r.get("okres_do"),
+            "do_zaplaty": r.get("do_zaplaty"),
+        }
+        if not item["nr_faktury"]:
+            pdf_bytes = _read_pdf_bytes(r)
+            if pdf_bytes:
+                item.update(_summary_from_parsed(parse_energa_pdf_bytes(pdf_bytes)))
+        out.append(item)
     return out
 
 
-def get_invoice(inv_id: str) -> Optional[Dict[str, Any]]:
+def get_invoice(
+    inv_id: str,
+    meters_delta_fn=None,
+    meter_labels: Optional[Dict[str, str]] = None,
+    pv_delta_fn=None,
+) -> Optional[Dict[str, Any]]:
+    row = _get_index_row(inv_id)
+    if not row:
+        return None
+    if meters_delta_fn and meter_labels is not None:
+        return compute_invoice(row, meters_delta_fn, meter_labels, pv_delta_fn)
+    return row
+
+
+def _get_index_row(inv_id: str) -> Optional[Dict[str, Any]]:
     for r in _load_index():
         if r.get("id") == inv_id:
             return r
@@ -72,7 +177,7 @@ def get_invoice(inv_id: str) -> Optional[Dict[str, Any]]:
 
 
 def pdf_path(inv_id: str) -> Optional[Path]:
-    row = get_invoice(inv_id)
+    row = _get_index_row(inv_id)
     if not row:
         return None
     p = FV_DIR / row.get("stored_name", "")
@@ -251,6 +356,7 @@ def save_upload(
     meter_labels: Dict[str, str],
     pv_delta_fn=None,
 ) -> Dict[str, Any]:
+    """Zapisuje tylko PDF + wpis w indeksie; obliczenia przy odczycie FV."""
     _ensure_dirs()
     inv_id = uuid.uuid4().hex[:12]
     safe = _safe_filename(filename)
@@ -259,52 +365,15 @@ def save_upload(
     path.write_bytes(pdf_bytes)
 
     parsed = parse_energa_pdf_bytes(pdf_bytes)
-    split: Optional[Dict[str, Any]] = None
-    split_error: Optional[str] = None
-    comparison: Optional[Dict[str, Any]] = None
-    meter_items: List[Dict[str, Any]] = []
-
-    if parsed.get("ok") and parsed.get("okres_od_iso") and parsed.get("okres_do_iso"):
-        try:
-            raw_meters = meters_delta_fn(parsed["okres_od_iso"], parsed["okres_do_iso"])
-            for r in raw_meters:
-                mid = str(r.get("meter_id", ""))
-                meter_items.append(
-                    {
-                        "meter_id": mid,
-                        "label": meter_labels.get(mid, mid),
-                        "kwh": r.get("kwh_delta"),
-                        "start_kwh": r.get("start_kwh"),
-                        "end_kwh": r.get("end_kwh"),
-                        "start_ts": r.get("start_ts"),
-                        "end_ts": r.get("end_ts"),
-                    }
-                )
-            split = compute_split(parsed, meter_items, meter_labels)
-            pv_range = None
-            if pv_delta_fn:
-                try:
-                    pv_range = pv_delta_fn(parsed["okres_od_iso"], parsed["okres_do_iso"])
-                except Exception:
-                    pv_range = None
-            comparison = build_comparison(parsed, meter_items, pv_range)
-        except Exception as e:
-            split_error = str(e)
-    elif parsed.get("ok"):
-        split_error = "Brak dat okresu — nie można pobrać zużycia liczników."
-
+    summary = _summary_from_parsed(parsed)
     row = {
         "id": inv_id,
         "original_name": filename,
         "stored_name": stored,
         "uploaded_at": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC"),
-        "parsed": parsed,
-        "split": split,
-        "split_error": split_error,
-        "comparison": comparison,
-        "meter_readings": meter_items,
+        **summary,
     }
     rows = _load_index()
     rows.append(row)
     _save_index(rows)
-    return row
+    return compute_invoice(row, meters_delta_fn, meter_labels, pv_delta_fn)

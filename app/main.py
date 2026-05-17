@@ -161,7 +161,12 @@ async def api_fv_list():
 
 @app.get("/api/fv/{inv_id}")
 async def api_fv_get(inv_id: str):
-    row = fv_store.get_invoice(inv_id)
+    row = fv_store.get_invoice(
+        inv_id,
+        str_data.fetch_meters_delta,
+        _meter_labels(),
+        str_data.fetch_pv_kwh_delta_range,
+    )
     if not row:
         raise HTTPException(status_code=404, detail="Brak FV o podanym id")
     return {"ok": True, "invoice": row}
