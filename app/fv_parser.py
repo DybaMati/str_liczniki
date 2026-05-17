@@ -19,6 +19,126 @@ def _pl_date_to_iso(s: str) -> str:
     return d.strftime("%Y-%m-%d")
 
 
+def _pl_num(s: str) -> float:
+    return float(s.strip().replace(" ", "").replace(",", "."))
+
+
+def _parse_meter_line(line: str) -> Optional[Dict[str, Any]]:
+    """Linia G11 11863735 L 31.03.2026 30.04.2026 wsk_od wsk_do ilosc Z."""
+    m = re.match(
+        r"^G(\d+)\s+(\d+)\s+(\w)\s+"
+        r"(\d{2}\.\d{2}\.\d{4})\s+(\d{2}\.\d{2}\.\d{4})\s+"
+        r"([\d\s,]+)\s+([\d\s,]+)\s+([\d,]+)\s+(\w)",
+        line.strip(),
+    )
+    if not m:
+        return None
+    return {
+        "grupa_taryfowa": f"G{m.group(1)}",
+        "nr_licznika": m.group(2),
+        "strefa": m.group(3),
+        "data_odczytu_od": m.group(4),
+        "data_odczytu_do": m.group(5),
+        "wskazanie_od": _pl_num(m.group(6)),
+        "wskazanie_do": _pl_num(m.group(7)),
+        "ilosc_kwh": _pl_num(m.group(8)),
+        "rodzaj_odczytu": m.group(9),
+    }
+
+
+def _line_after_marker(lines: List[str], marker: str, predicate) -> Optional[str]:
+    found = False
+    for ln in lines:
+        if marker in ln:
+            found = True
+            continue
+        if not found:
+            continue
+        if predicate(ln):
+            return ln.strip()
+        if ln.startswith("1. ROZLICZENIE") or ln.startswith("2. ROZLICZENIE"):
+            break
+    return None
+
+
+def _parse_saldo_line(text: str, label: str) -> Optional[Dict[str, Any]]:
+    m = re.search(
+        rf"{re.escape(label)}\s+"
+        r"(\d{2}\.\d{2}\.\d{4})\s+(\d{2}\.\d{2}\.\d{4})\s+(\d+)",
+        text,
+    )
+    if not m:
+        return None
+    return {
+        "od": m.group(1),
+        "do": m.group(2),
+        "kwh": int(m.group(3)),
+    }
+
+
+def _parse_dane_energii_energa(text: str) -> Dict[str, Any]:
+    """Dane odczytowe i energia pobrana / wprowadzona (prosument) z FV ENERGA."""
+    lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
+    ppe_m = re.search(r"Kod PPE:\s*(\d+)", text)
+    adres_m = re.search(r"Adres PPE:\s*(.+?)\s+Moc umowna:\s*([\d,]+)\s*kW", text, re.I)
+    zab_m = re.search(r"Zabezpieczenie przedlicznikowe:\s*([^\n]+)", text, re.I)
+    kwh12_m = re.search(
+        r"zużytej energii elektrycznej w okresie ostatnich 12 miesięcy:\s*([\d\s]+)\s*kWh",
+        text,
+        re.I,
+    )
+
+    ln_pob = _line_after_marker(lines, "Pobranie energii", lambda s: s.startswith("G"))
+    ln_wpr = _line_after_marker(lines, "Wprowadzenie energii", lambda s: s.startswith("G"))
+    pobranie = _parse_meter_line(ln_pob) if ln_pob else None
+    wprowadzenie = _parse_meter_line(ln_wpr) if ln_wpr else None
+    saldo_dod = _parse_saldo_line(text, "Suma godzinowych sald dodatnich")
+    saldo_ujem = _parse_saldo_line(text, "Suma godzinowych sald ujemnych")
+
+    wprz_m = re.search(
+        r"Suma godzinowych sald ujemnych\s+"
+        r"\d{2}\.\d{2}\.\d{4}\s+\d{2}\.\d{2}\.\d{4}\s+\d+\s+kWh\s+"
+        r"[\d,]+\s+[\d,]+\s+[\d,]+\s+([\d,]+)",
+        text,
+        re.I,
+    )
+    depozyt_stan_m = re.search(r"Stan depozytu\s+\d{2}\.\d{2}\.\d{4}\s+([\d,]+)\s*zł", text, re.I)
+    depozyt_razem_m = re.search(r"Razem depozyt\s+([\d,]+)\s*zł", text, re.I)
+
+    wiersze: List[Dict[str, Any]] = []
+    if pobranie:
+        wiersze.append({"typ": "pobranie", "opis": "Energia czynna (pobranie z sieci)", **pobranie})
+    if saldo_dod:
+        wiersze.append({"typ": "saldo_dodatnie", "opis": "Suma godzinowych sald dodatnich", **saldo_dod})
+    if wprowadzenie:
+        wiersze.append({"typ": "wprowadzenie", "opis": "Energia czynna oddanie (do sieci)", **wprowadzenie})
+    if saldo_ujem:
+        wiersze.append({"typ": "saldo_ujemne", "opis": "Suma godzinowych sald ujemnych", **saldo_ujem})
+
+    return {
+        "punkt_poboru": {
+            "kod_ppe": ppe_m.group(1) if ppe_m else "",
+            "adres": adres_m.group(1).strip() if adres_m else "",
+            "moc_umowna_kw": _pl_num(adres_m.group(2)) if adres_m else None,
+            "zabezpieczenie": zab_m.group(1).strip() if zab_m else "",
+            "zuzyto_12m_kwh": int(kwh12_m.group(1).replace(" ", "")) if kwh12_m else None,
+            "prosument": "PROSUMENT" in text.upper(),
+        },
+        "pobranie": pobranie,
+        "wprowadzenie": wprowadzenie,
+        "saldo_dodatnie": saldo_dod,
+        "saldo_ujemne": saldo_ujem,
+        "wprowadzenie_rozliczenie_netto_zl": (
+            _pl_num(wprz_m.group(1))
+            if wprz_m
+            else (_pl_num(depozyt_stan_m.group(1)) if depozyt_stan_m else None)
+        ),
+        "depozyt_stan_zl": _pl_num(depozyt_stan_m.group(1)) if depozyt_stan_m else None,
+        "depozyt_razem_zl": _pl_num(depozyt_razem_m.group(1)) if depozyt_razem_m else None,
+        "wiersze": wiersze,
+    }
+
+
 def _charge_kind(unit: str, name: str) -> str:
     u = unit.upper()
     if u in _FIXED_UNITS:
@@ -160,6 +280,8 @@ def parse_energa_pdf_text(text: str) -> Dict[str, Any]:
     if wartosc_brutto is None and netto_razem is not None and kwota_vat is not None:
         wartosc_brutto = round(netto_razem + kwota_vat, 2)
 
+    dane_energii = _parse_dane_energii_energa(text)
+
     ok = bool(period_from and all_items)
     return {
         "ok": ok,
@@ -172,6 +294,7 @@ def parse_energa_pdf_text(text: str) -> Dict[str, Any]:
         "okres_od_iso": period_from_iso,
         "okres_do_iso": period_to_iso,
         "kwh_rozliczeniowe": kwh_rozliczeniowe,
+        "dane_energii": dane_energii,
         "sprzedaz": sprzedaz,
         "dystrybucja": dystrybucja,
         "podsumowanie": {

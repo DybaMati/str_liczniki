@@ -36,6 +36,14 @@
 .fv-kpi .val.stala{color:#fcd34d}
 .fv-kpi .val.zmienna{color:#7dd3fc}
 .fv-kpi .val.pay{color:#6ee7b7}
+.fv-kpi .val.pob{color:#fb923c}
+.fv-kpi .val.wpr{color:#c4b5fd}
+.fv-cmp-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;margin:12px 0}
+.fv-cmp-item{background:#1c1c1c;border:1px solid #333;border-radius:8px;padding:10px 12px}
+.fv-cmp-item .lbl{font-size:11px;color:#9ca3af;text-transform:uppercase;font-weight:600}
+.fv-cmp-item .val{font-size:17px;font-weight:700;margin-top:4px;font-variant-numeric:tabular-nums}
+.fv-uagi{list-style:disc;margin:8px 0 0 18px;color:#d4d4d4;font-size:14px;line-height:1.45}
+.fv-uagi li{margin:4px 0}
 .fv-tbl{width:100%;border-collapse:collapse;font-size:14px;margin-top:8px}
 .fv-tbl th,.fv-tbl td{border:1px solid #404040;padding:8px 10px;text-align:left;vertical-align:middle}
 .fv-tbl th{color:#a3a3a3;font-weight:600;font-size:13px;background:rgba(0,0,0,0.2)}
@@ -55,15 +63,14 @@
 <div class="fv-page">
 <h1 style="font-weight:700;font-size:clamp(1.25rem,4vw,1.45rem);margin:0 0 10px;color:#fafafa">Rozliczenie FV energii</h1>
 <p class="fv-intro">
-  Wgraj PDF faktury ENERGA. Pozycje jak na FV, suma <strong>stałych</strong> i <strong>zmiennych</strong>,
-  podział na 3 liczniki. Z listy możesz usunąć FV (kosz) — znika też plik PDF.
+  Wgraj PDF faktury ENERGA. Odczyty licznika (pobrano / wprowadzono), stan wskazań, porównanie z 3 licznikami i PV,
+  pozycje opłat, suma <strong>stałych</strong> i <strong>zmiennych</strong>, podział na liczniki. Usuń FV koszem — znika też PDF.
 </p>
 
 <div class="fv-upload">
   <input type="file" id="fv-file" accept="application/pdf,.pdf" />
   <button type="button" id="fv-send">Wgraj FV</button>
   <span id="fv-upload-status"></span>
-
 </div>
 
 <div class="fv-layout">
@@ -99,6 +106,76 @@
   function esc(s) {
     if (s == null) return '';
     return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+
+  function plKwh(n, dec) {
+    if (n == null || isNaN(n)) return '—';
+    return plNum(n, dec == null ? 3 : dec) + ' kWh';
+  }
+
+  function renderDaneEnergii(de) {
+    if (!de) return '';
+    var pp = de.punkt_poboru || {};
+    var html = '<div class="fv-panel"><h3>Dane odczytowe i energia (z FV)</h3>';
+    html += '<p class="fv-note">';
+    if (pp.kod_ppe) html += 'PPE: <strong>' + esc(pp.kod_ppe) + '</strong>';
+    if (pp.adres) html += ' · ' + esc(pp.adres);
+    if (pp.moc_umowna_kw != null) html += ' · moc ' + plNum(pp.moc_umowna_kw, 0) + ' kW';
+    if (pp.prosument) html += ' · <strong>prosument</strong>';
+    html += '</p>';
+    if (de.wiersze && de.wiersze.length) {
+      html += '<div class="wrap-fv-tbl"><table class="fv-tbl"><thead><tr><th>Opis</th><th>Okres odczytu</th><th class="num">Wsk. początek</th><th class="num">Wsk. koniec</th><th class="num">Ilość kWh</th><th>Rodz.</th></tr></thead><tbody>';
+      de.wiersze.forEach(function (w) {
+        var okres = (w.data_odczytu_od || w.od || '') + (w.do || w.data_odczytu_do ? ' – ' + (w.do || w.data_odczytu_do) : '');
+        if (!okres && w.od && w.do) okres = w.od + ' – ' + w.do;
+        html += '<tr><td>' + esc(w.opis || w.typ) + '</td><td>' + esc(okres) + '</td>';
+        html += '<td class="num">' + (w.wskazanie_od != null ? plNum(w.wskazanie_od, 2) : '—') + '</td>';
+        html += '<td class="num">' + (w.wskazanie_do != null ? plNum(w.wskazanie_do, 2) : '—') + '</td>';
+        html += '<td class="num"><strong>' + (w.ilosc_kwh != null ? plKwh(w.ilosc_kwh) : (w.kwh != null ? w.kwh + ' kWh' : '—')) + '</strong></td>';
+        html += '<td>' + esc(w.rodzaj_odczytu || '') + '</td></tr>';
+      });
+      html += '</tbody></table></div>';
+    }
+    var pob = de.pobranie;
+    var wpr = de.wprowadzenie;
+    if (pob && pob.nr_licznika) {
+      html += '<p class="fv-note">Licznik główny FV: <strong>' + esc(pob.nr_licznika) + '</strong> (' + esc(pob.grupa_taryfowa || '') + ', strefa ' + esc(pob.strefa || '') + ')</p>';
+    }
+    if (de.depozyt_stan_zl != null) {
+      html += '<p class="fv-note">Depozyt energii (stan): <strong>' + plMoney(de.depozyt_stan_zl) + '</strong></p>';
+    }
+    html += '</div>';
+    return html;
+  }
+
+  function renderPorownanie(cmp, inv) {
+    if (!cmp) return '';
+    var html = '<div class="fv-panel"><h3>Porównanie: FV vs liczniki wewnętrzne vs PV</h3>';
+    html += '<div class="fv-cmp-grid">';
+    html += '<div class="fv-cmp-item"><div class="lbl">Pobrano (odczyt licznika)</div><div class="val">' + plKwh(cmp.fv_kwh_pobranie_licznik, 3) + '</div></div>';
+    html += '<div class="fv-cmp-item"><div class="lbl">Rozliczone (saldo +)</div><div class="val">' + (cmp.fv_kwh_rozliczone != null ? cmp.fv_kwh_rozliczone + ' kWh' : '—') + '</div></div>';
+    html += '<div class="fv-cmp-item"><div class="lbl">Wprowadzono (odczyt licznika)</div><div class="val">' + plKwh(cmp.fv_kwh_wprowadzenie_licznik, 3) + '</div></div>';
+    html += '<div class="fv-cmp-item"><div class="lbl">Suma 3 liczników (baza)</div><div class="val">' + plKwh(cmp.liczniki_wewn_suma_kwh, 1) + '</div></div>';
+    html += '<div class="fv-cmp-item"><div class="lbl">Produkcja PV (baza)</div><div class="val">' + plKwh(cmp.pv_produkcja_kwh, 1) + '</div></div>';
+    html += '</div>';
+    if (cmp.uwagi && cmp.uwagi.length) {
+      html += '<ul class="fv-uagi">';
+      cmp.uwagi.forEach(function (u) { html += '<li>' + esc(u) + '</li>'; });
+      html += '</ul>';
+    }
+    if (inv.meter_readings && inv.meter_readings.length) {
+      html += '<p class="fv-note" style="margin-top:12px">Zużycie wewnętrzne w tym okresie:</p>';
+      html += '<div class="wrap-fv-tbl"><table class="fv-tbl"><thead><tr><th>Licznik</th><th class="num">Początek kWh</th><th class="num">Koniec kWh</th><th class="num">Zużycie</th></tr></thead><tbody>';
+      inv.meter_readings.forEach(function (m) {
+        html += '<tr><td>' + esc(m.label) + '</td>';
+        html += '<td class="num">' + (m.start_kwh != null ? plNum(m.start_kwh, 2) : '—') + '</td>';
+        html += '<td class="num">' + (m.end_kwh != null ? plNum(m.end_kwh, 2) : '—') + '</td>';
+        html += '<td class="num"><strong>' + (m.kwh != null ? plKwh(m.kwh, 1) : '—') + '</strong></td></tr>';
+      });
+      html += '</tbody></table></div>';
+    }
+    html += '</div>';
+    return html;
   }
 
   function chargeRows(items) {
@@ -153,7 +230,9 @@
   function renderDetail(inv) {
     var p = inv.parsed || {};
     var pod = p.podsumowanie || {};
+    var de = p.dane_energii || {};
     var sp = inv.split;
+    var cmp = inv.comparison;
     var title = p.nr_faktury || inv.original_name || 'Faktura';
     var html = '';
 
@@ -181,10 +260,25 @@
     html += '<div class="box"><div class="lbl">Zmienne (netto)</div><div class="val zmienna">' + plMoney(pod.zmienna_netto) + '</div></div>';
     html += '<div class="box"><div class="lbl">Razem brutto (FV)</div><div class="val">' + plMoney(pod.razem_brutto) + '</div></div>';
     html += '<div class="box"><div class="lbl">Do zapłaty</div><div class="val pay">' + plMoney(pod.do_zaplaty_brutto) + '</div></div>';
+    if (de.pobranie && de.pobranie.ilosc_kwh != null) {
+      html += '<div class="box"><div class="lbl">Pobrano (licznik FV)</div><div class="val pob">' + plKwh(de.pobranie.ilosc_kwh, 3) + '</div></div>';
+    }
+    if (de.wprowadzenie && de.wprowadzenie.ilosc_kwh != null) {
+      html += '<div class="box"><div class="lbl">Wprowadzono (licznik FV)</div><div class="val wpr">' + plKwh(de.wprowadzenie.ilosc_kwh, 3) + '</div></div>';
+    }
+    if (de.saldo_dodatnie && de.saldo_dodatnie.kwh != null) {
+      html += '<div class="box"><div class="lbl">Do rozliczenia (+)</div><div class="val">' + de.saldo_dodatnie.kwh + ' kWh</div></div>';
+    }
+    if (de.saldo_ujemne && de.saldo_ujemne.kwh != null) {
+      html += '<div class="box"><div class="lbl">Saldo ujemne (−)</div><div class="val">' + de.saldo_ujemne.kwh + ' kWh</div></div>';
+    }
     if (pod.depozyt_brutto) {
       html += '<div class="box"><div class="lbl">Depozyt (FV)</div><div class="val">' + plMoney(pod.depozyt_brutto) + '</div></div>';
     }
     html += '</div>';
+
+    html += renderDaneEnergii(de);
+    html += renderPorownanie(cmp, inv);
 
     html += '<div class="fv-panel"><h3>1. Rozliczenie sprzedaży energii pobranej</h3>';
     html += '<div class="wrap-fv-tbl"><table class="fv-tbl"><thead><tr><th>Rodzaj opłaty</th><th>Okres</th><th class="num">Ilość</th><th>Jm</th><th class="num">Cena netto</th><th class="num">Wartość netto</th><th class="num">VAT</th></tr></thead><tbody>';

@@ -167,11 +167,89 @@ def compute_split(
     }
 
 
+def build_comparison(
+    parsed: Dict[str, Any],
+    meters: List[Dict[str, Any]],
+    pv_range: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    """Porównanie odczytów z FV z licznikami wewnętrznymi i produkcją PV."""
+    de = parsed.get("dane_energii") or {}
+    pob = de.get("pobranie") or {}
+    wpr = de.get("wprowadzenie") or {}
+    saldo_dod = de.get("saldo_dodatnie") or {}
+    saldo_ujem = de.get("saldo_ujemne") or {}
+
+    fv_roz = parsed.get("kwh_rozliczeniowe")
+    fv_pob_licznik = pob.get("ilosc_kwh")
+    fv_wpr_licznik = wpr.get("ilosc_kwh")
+    fv_saldo_dod = saldo_dod.get("kwh")
+    fv_saldo_ujem = saldo_ujem.get("kwh")
+
+    sum_liczniki = 0.0
+    for m in meters:
+        if m.get("kwh") is not None:
+            sum_liczniki += float(m["kwh"])
+
+    pv_kwh = None
+    if pv_range and pv_range.get("kwh_delta") is not None:
+        pv_kwh = float(pv_range["kwh_delta"])
+
+    def _diff(a: Optional[float], b: Optional[float]) -> Optional[float]:
+        if a is None or b is None:
+            return None
+        return round(float(b) - float(a), 3)
+
+    return {
+        "fv_kwh_rozliczone": fv_roz,
+        "fv_kwh_pobranie_licznik": fv_pob_licznik,
+        "fv_kwh_wprowadzenie_licznik": fv_wpr_licznik,
+        "fv_saldo_dodatnie_kwh": fv_saldo_dod,
+        "fv_saldo_ujemne_kwh": fv_saldo_ujem,
+        "liczniki_wewn_suma_kwh": round(sum_liczniki, 3) if sum_liczniki else None,
+        "pv_produkcja_kwh": pv_kwh,
+        "roznica_liczniki_minus_fv_rozliczone": _diff(fv_roz, sum_liczniki if sum_liczniki else None),
+        "roznica_pv_minus_wprowadzenie_fv": _diff(fv_wpr_licznik, pv_kwh),
+        "uwagi": _comparison_notes(
+            fv_roz, fv_pob_licznik, fv_wpr_licznik, sum_liczniki, pv_kwh
+        ),
+    }
+
+
+def _comparison_notes(
+    fv_roz: Optional[int],
+    fv_pob: Optional[float],
+    fv_wpr: Optional[float],
+    sum_liczniki: float,
+    pv_kwh: Optional[float],
+) -> List[str]:
+    notes: List[str] = []
+    if fv_roz is not None and sum_liczniki > 0:
+        diff = round(sum_liczniki - fv_roz, 1)
+        if abs(diff) > 5:
+            notes.append(
+                f"Suma 3 liczników ({sum_liczniki:.1f} kWh) vs kWh rozliczone na FV ({fv_roz}): różnica {diff:+.1f} kWh."
+            )
+    if fv_pob is not None and fv_roz is not None and abs(fv_pob - fv_roz) > 1:
+        notes.append(
+            f"Odczyt licznika głównego pobranie ({fv_pob:.3f} kWh) vs saldo dodatnie do rozliczenia ({fv_roz} kWh) — na FV po bilansie prosumenta."
+        )
+    if pv_kwh is not None and fv_wpr is not None:
+        diff = round(pv_kwh - fv_wpr, 1)
+        if abs(diff) > 10:
+            notes.append(
+                f"Produkcja PV z bazy ({pv_kwh:.1f} kWh) vs wprowadzenie na FV ({fv_wpr:.1f} kWh): różnica {diff:+.1f} kWh."
+            )
+    if not notes:
+        notes.append("Wartości są blisko siebie lub brak danych do porównania w tym okresie.")
+    return notes
+
+
 def save_upload(
     filename: str,
     pdf_bytes: bytes,
     meters_delta_fn,
     meter_labels: Dict[str, str],
+    pv_delta_fn=None,
 ) -> Dict[str, Any]:
     _ensure_dirs()
     inv_id = uuid.uuid4().hex[:12]
@@ -183,21 +261,33 @@ def save_upload(
     parsed = parse_energa_pdf_bytes(pdf_bytes)
     split: Optional[Dict[str, Any]] = None
     split_error: Optional[str] = None
+    comparison: Optional[Dict[str, Any]] = None
+    meter_items: List[Dict[str, Any]] = []
 
     if parsed.get("ok") and parsed.get("okres_od_iso") and parsed.get("okres_do_iso"):
         try:
             raw_meters = meters_delta_fn(parsed["okres_od_iso"], parsed["okres_do_iso"])
-            items = []
             for r in raw_meters:
                 mid = str(r.get("meter_id", ""))
-                items.append(
+                meter_items.append(
                     {
                         "meter_id": mid,
                         "label": meter_labels.get(mid, mid),
                         "kwh": r.get("kwh_delta"),
+                        "start_kwh": r.get("start_kwh"),
+                        "end_kwh": r.get("end_kwh"),
+                        "start_ts": r.get("start_ts"),
+                        "end_ts": r.get("end_ts"),
                     }
                 )
-            split = compute_split(parsed, items, meter_labels)
+            split = compute_split(parsed, meter_items, meter_labels)
+            pv_range = None
+            if pv_delta_fn:
+                try:
+                    pv_range = pv_delta_fn(parsed["okres_od_iso"], parsed["okres_do_iso"])
+                except Exception:
+                    pv_range = None
+            comparison = build_comparison(parsed, meter_items, pv_range)
         except Exception as e:
             split_error = str(e)
     elif parsed.get("ok"):
@@ -211,6 +301,8 @@ def save_upload(
         "parsed": parsed,
         "split": split,
         "split_error": split_error,
+        "comparison": comparison,
+        "meter_readings": meter_items,
     }
     rows = _load_index()
     rows.append(row)

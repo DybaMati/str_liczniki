@@ -197,6 +197,7 @@ async def api_fv_upload(file: UploadFile = File(...)):
             raw,
             str_data.fetch_meters_delta,
             _meter_labels(),
+            str_data.fetch_pv_kwh_delta_range,
         )
     except RuntimeError as e:
         msg = str(e)
