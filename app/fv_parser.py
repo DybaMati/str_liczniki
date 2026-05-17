@@ -27,34 +27,87 @@ def _norm_line(s: str) -> str:
     return re.sub(r"\s+", " ", (s or "").strip())
 
 
-_WSK_PL_RE = re.compile(r"\d{1,3}(?: \d{3})*,\d{2}|\d+,\d{2}")
+# Wskazania: „10 652,43” (pełny format) przed krótkim „652,43”
+_WSK_PL_RE = re.compile(
+    r"\d{1,2}(?: \d{3})+,\d{2}|\d{1,3}(?: \d{3})*,\d{2}|\d+,\d{2}"
+)
+_ILOSC_KWH_RE = re.compile(
+    r"^(\d{1,3}(?: \d{3})*,\d{1,3}|\d{1,3}(?: \d{3})*,\d{2}|\d{1,3} \d{3}|\d+,\d{1,3})"
+)
 _METER_HEAD_RE = re.compile(
-    r"G(\d+)\s+(\d+)\s+(\w)\s+(\d{2}\.\d{2}\.\d{4})\s+(\d{2}\.\d{2}\.\d{4})\s+(.+?)\s+(\w)\s*$",
+    r"G(\d+)\s+(\d+)\s+(\w)\s+"
+    r"(\d{2}\.\d{2}\.\d{4})\s+(\d{2}\.\d{2}\.\d{4})\s+"
+    r"(.+?)\s+([A-Z])\s*$",
     re.I,
 )
 
 
 def _pl_num_ilosc(s: str) -> float:
-    """Ilość kWh: 260,325 albo z PDF czasem '260 325' (= 260,325)."""
+    """Ilość kWh: 260,325 albo z PDF czasem '260 325' (= 260,325). Bez spacji przy przecinku."""
     s = _norm_line(s)
+    if "," in s:
+        return _pl_num(s)
     m = re.match(r"^(\d{1,3}) (\d{3})$", s)
     if m:
         return float(f"{m.group(1)}.{m.group(2)}")
     return _pl_num(s)
 
 
-def _parse_meter_tail(tail: str) -> Optional[Tuple[float, float, float]]:
+def _kwh_from_wskazania(wsk_od: float, wsk_do: float) -> float:
+    return round(max(0.0, wsk_do - wsk_od), 3)
+
+
+def _pick_ilosc_kwh(wsk_od: float, wsk_do: float, raw: Optional[float]) -> float:
+    """Zużycie = różnica wskazań; tekst z PDF bywa zlepkowy (np. „5 260,325”)."""
+    delta = _kwh_from_wskazania(wsk_od, wsk_do)
+    if raw is None:
+        return delta
+    if raw <= 0:
+        return delta
+    # typowe zużycie miesięczne; odrzuć zlepki typu 5260 z „5 260,325”
+    if raw > 5000 and delta < 2000:
+        return delta
+    if abs(raw - delta) > max(15.0, delta * 0.2):
+        return delta
+    return round(raw, 3)
+
+
+def _parse_ilosc_from_rest(rest: str) -> Optional[float]:
+    rest = rest.strip()
+    m = _ILOSC_KWH_RE.match(rest)
+    if not m:
+        return None
+    return _pl_num_ilosc(m.group(1))
+
+
+def _parse_meter_tail(tail: str) -> Optional[Tuple[float, float, float, str]]:
     wsk = list(_WSK_PL_RE.finditer(tail))
     if len(wsk) >= 2:
         wsk_od = _pl_num(wsk[0].group(0))
         wsk_do = _pl_num(wsk[1].group(0))
         rest = tail[wsk[1].end() :].strip()
-        ilosc_m = re.match(r"^([\d\s,]+)", rest)
-        if ilosc_m:
-            return wsk_od, wsk_do, _pl_num_ilosc(ilosc_m.group(1))
-    tokens = re.findall(r"\d{1,3}(?: \d{3})*,\d{2}|\d+(?:,\d+)?|\d{1,3}(?: \d{3})+", tail)
-    if len(tokens) >= 3:
-        return _pl_num(tokens[-3]), _pl_num(tokens[-2]), _pl_num_ilosc(tokens[-1])
+        raw_ilosc = _parse_ilosc_from_rest(rest)
+        ilosc = _pick_ilosc_kwh(wsk_od, wsk_do, raw_ilosc)
+        rodzaj = "Z"
+        rm = re.search(r"\b([A-Z])\s*$", rest)
+        if rm:
+            rodzaj = rm.group(1).upper()
+        return wsk_od, wsk_do, ilosc, rodzaj
+    tokens = re.findall(
+        r"\d{1,2}(?: \d{3})+,\d{2}|\d{1,3}(?: \d{3})*,\d{2}|\d+,\d{2}",
+        tail,
+    )
+    if len(tokens) >= 2:
+        wsk_od = _pl_num(tokens[0])
+        wsk_do = _pl_num(tokens[1])
+        rest = tail
+        for t in tokens[:2]:
+            idx = rest.find(t)
+            if idx >= 0:
+                rest = rest[idx + len(t) :]
+        raw_ilosc = _parse_ilosc_from_rest(rest.strip())
+        ilosc = _pick_ilosc_kwh(wsk_od, wsk_do, raw_ilosc)
+        return wsk_od, wsk_do, ilosc, "Z"
     return None
 
 
@@ -63,10 +116,10 @@ def _parse_meter_line(line: str) -> Optional[Dict[str, Any]]:
     m = _METER_HEAD_RE.match(_norm_line(line))
     if not m:
         return None
-    nums = _parse_meter_tail(m.group(6))
-    if not nums:
+    parsed_tail = _parse_meter_tail(m.group(6))
+    if not parsed_tail:
         return None
-    wsk_od, wsk_do, ilosc = nums
+    wsk_od, wsk_do, ilosc, rodzaj = parsed_tail
     return {
         "grupa_taryfowa": f"G{m.group(1)}",
         "nr_licznika": m.group(2),
@@ -76,7 +129,7 @@ def _parse_meter_line(line: str) -> Optional[Dict[str, Any]]:
         "wskazanie_od": wsk_od,
         "wskazanie_do": wsk_do,
         "ilosc_kwh": ilosc,
-        "rodzaj_odczytu": m.group(7).upper(),
+        "rodzaj_odczytu": rodzaj if len(rodzaj) == 1 else m.group(7).upper(),
     }
 
 
