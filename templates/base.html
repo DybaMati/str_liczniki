@@ -43,18 +43,102 @@
       display: flex;
       flex-direction: column;
       align-items: flex-end;
-      gap: 2px;
-      font-size: clamp(10px, 2.7vw, 12px);
-      color: #b8b8b8;
-      line-height: 1.25;
-      font-variant-numeric: tabular-nums;
-      text-align: right;
+      gap: 6px;
       max-width: 100%;
+      text-align: right;
     }
-    .nav-status-line { white-space: nowrap; }
-    .nav-tcp-ok { color: #34d399; }
-    .nav-tcp-bad { color: #f87171; }
-    .nav-tcp-wait { color: #fbbf24; }
+    .nav-clock {
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+      line-height: 1.15;
+      color: #e5e5e5;
+      font-size: 13px;
+      font-weight: 600;
+    }
+    .nav-status-meta {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      align-items: center;
+      gap: 6px;
+    }
+    .nav-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 500;
+      line-height: 1.2;
+      white-space: nowrap;
+      font-variant-numeric: tabular-nums;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid #383838;
+      color: #9ca3af;
+    }
+    .nav-pill-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: currentColor;
+      flex-shrink: 0;
+      opacity: 0.95;
+    }
+    .nav-pill-label {
+      color: #6b7280;
+      font-weight: 600;
+      font-size: 9px;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+    }
+    .nav-pill-val {
+      color: #e5e7eb;
+      font-weight: 600;
+    }
+    #nav-tcp.nav-tcp-ok {
+      color: #6ee7b7;
+      background: rgba(52, 211, 153, 0.1);
+      border-color: rgba(52, 211, 153, 0.35);
+    }
+    #nav-tcp.nav-tcp-ok .nav-pill-dot { box-shadow: 0 0 8px rgba(52, 211, 153, 0.55); }
+    #nav-tcp.nav-tcp-bad {
+      color: #fca5a5;
+      background: rgba(248, 113, 113, 0.1);
+      border-color: rgba(248, 113, 113, 0.35);
+    }
+    #nav-tcp.nav-tcp-wait {
+      color: #fcd34d;
+      background: rgba(251, 191, 36, 0.08);
+      border-color: rgba(251, 191, 36, 0.3);
+    }
+    #nav-tcp.nav-tcp-wait .nav-pill-dot { animation: nav-tcp-pulse 1.2s ease-in-out infinite; }
+    @keyframes nav-tcp-pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.35; transform: scale(0.85); }
+    }
+    .nav-pill-data {
+      background: rgba(59, 130, 246, 0.08);
+      border-color: rgba(59, 130, 246, 0.28);
+    }
+    .nav-pill-data .nav-pill-label { color: #60a5fa; }
+    .nav-pill-data .nav-pill-val { color: #f3f4f6; font-size: 12px; }
+    @media (min-width: 721px) {
+      .nav-clock {
+        font-size: 1.28rem;
+        font-weight: 600;
+        color: #f8fafc;
+        letter-spacing: 0.04em;
+      }
+      .nav-status { gap: 8px; padding: 2px 0; }
+      .nav-pill {
+        font-size: 12px;
+        padding: 5px 12px;
+        gap: 7px;
+      }
+      .nav-pill-label { font-size: 10px; }
+      .nav-pill-data .nav-pill-val { font-size: 13px; }
+    }
     main {
       padding: 12px max(12px, env(safe-area-inset-right)) 28px max(12px, env(safe-area-inset-left));
       max-width: 1200px;
@@ -67,15 +151,18 @@
       .nav a { padding: 6px 8px; }
       .nav-status {
         flex: 1 0 100%;
-        flex-direction: row;
-        flex-wrap: wrap;
-        justify-content: flex-end;
-        align-items: center;
-        gap: 4px 8px;
+        flex-direction: column;
+        align-items: flex-end;
+        gap: 5px;
         margin-left: 0;
-        padding-top: 4px;
+        padding-top: 6px;
         border-top: 1px solid #2a2a2a;
       }
+      .nav-clock { font-size: 12px; }
+      .nav-status-meta { width: 100%; gap: 5px; }
+      .nav-pill { font-size: 10px; padding: 3px 8px; gap: 5px; }
+      .nav-pill-dot { width: 6px; height: 6px; }
+      .nav-pill-data .nav-pill-val { font-size: 11px; }
     }
     @media (max-width: 480px) {
       .nav { padding-top: 8px; padding-bottom: 8px; }
@@ -94,9 +181,18 @@
       <a href="/meters" class="{{ 'active' if active == 'meters' else '' }}">Zużycie kWh</a>
     </div>
     <div class="nav-status" id="nav-status" aria-live="polite">
-      <span class="nav-status-line" id="nav-clock">--</span>
-      <span class="nav-status-line" id="nav-tcp">TCP: sprawdzanie...</span>
-      <span class="nav-status-line" id="nav-traffic">0,00 MB</span>
+      <div class="nav-clock" id="nav-clock">--</div>
+      <div class="nav-status-meta">
+        <span class="nav-pill nav-tcp-wait" id="nav-tcp">
+          <span class="nav-pill-dot" aria-hidden="true"></span>
+          <span class="nav-pill-label">TCP</span>
+          <span class="nav-pill-val" id="nav-tcp-text">...</span>
+        </span>
+        <span class="nav-pill nav-pill-data" id="nav-traffic">
+          <span class="nav-pill-label">Ruch</span>
+          <span class="nav-pill-val" id="nav-traffic-val">0,00 MB</span>
+        </span>
+      </div>
     </div>
   </nav>
   <main>
@@ -106,8 +202,9 @@
   (function () {
     var clockEl = document.getElementById('nav-clock');
     var tcpEl = document.getElementById('nav-tcp');
-    var trafficEl = document.getElementById('nav-traffic');
-    if (!clockEl || !tcpEl || !trafficEl) return;
+    var tcpText = document.getElementById('nav-tcp-text');
+    var trafficVal = document.getElementById('nav-traffic-val');
+    if (!clockEl || !tcpEl || !tcpText || !trafficVal) return;
 
     var totalBytes = 0;
     var tcpOk = null;
@@ -140,21 +237,21 @@
     }
 
     function updateTraffic() {
-      trafficEl.textContent = fmtTraffic(totalBytes);
+      trafficVal.textContent = fmtTraffic(totalBytes);
     }
 
     function setTcp(ok, checking) {
       tcpEl.classList.remove('nav-tcp-ok', 'nav-tcp-bad', 'nav-tcp-wait');
       if (checking) {
-        tcpEl.textContent = 'TCP: ...';
+        tcpText.textContent = '...';
         tcpEl.classList.add('nav-tcp-wait');
         return;
       }
       if (ok) {
-        tcpEl.textContent = 'TCP: OK';
+        tcpText.textContent = 'OK';
         tcpEl.classList.add('nav-tcp-ok');
       } else {
-        tcpEl.textContent = 'TCP: brak';
+        tcpText.textContent = 'brak';
         tcpEl.classList.add('nav-tcp-bad');
       }
     }
