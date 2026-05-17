@@ -27,17 +27,17 @@ def _norm_line(s: str) -> str:
     return re.sub(r"\s+", " ", (s or "").strip())
 
 
-# Wskazania: „10 652,43” (pełny format) przed krótkim „652,43”
+# Wskazania: „10 652,43” lub „10 563,167” (PDF bywa z 2 lub 3 miejscami po przecinku)
 _WSK_PL_RE = re.compile(
-    r"\d{1,2}(?: \d{3})+,\d{2}|\d{1,3}(?: \d{3})*,\d{2}|\d+,\d{2}"
+    r"\d{1,2}(?: \d{3})+,\d{2,3}|\d{1,3}(?: \d{3})*,\d{2,3}|\d+,\d{2,3}"
 )
 _ILOSC_KWH_RE = re.compile(
-    r"^(\d{1,3}(?: \d{3})*,\d{1,3}|\d{1,3}(?: \d{3})*,\d{2}|\d{1,3} \d{3}|\d+,\d{1,3})"
+    r"^(\d{1,3}(?: \d{3})*,\d{1,3}|\d{1,3}(?: \d{3})*,\d{2,3}|\d{1,3} \d{3}|\d+,\d{1,3})"
 )
 _METER_HEAD_RE = re.compile(
     r"G(\d+)\s+(\d+)\s+(\w)\s+"
     r"(\d{2}\.\d{2}\.\d{4})\s+(\d{2}\.\d{2}\.\d{4})\s+"
-    r"(.+?)\s+([A-Z])\s*$",
+    r"(.+?)\s+([A-Z])(?:\s+\d+)?\s*$",
     re.I,
 )
 
@@ -58,16 +58,13 @@ def _kwh_from_wskazania(wsk_od: float, wsk_do: float) -> float:
 
 
 def _pick_ilosc_kwh(wsk_od: float, wsk_do: float, raw: Optional[float]) -> float:
-    """Zużycie = różnica wskazań; tekst z PDF bywa zlepkowy (np. „5 260,325”)."""
+    """Zużycie: różnica wskazań; popraw tylko zlepki z PDF (np. „5 260,325” → 5260)."""
     delta = _kwh_from_wskazania(wsk_od, wsk_do)
-    if raw is None:
+    if raw is None or raw <= 0:
         return delta
-    if raw <= 0:
-        return delta
-    # typowe zużycie miesięczne; odrzuć zlepki typu 5260 z „5 260,325”
     if raw > 5000 and delta < 2000:
         return delta
-    if abs(raw - delta) > max(15.0, delta * 0.2):
+    if abs(raw - delta) > max(50.0, delta * 0.5):
         return delta
     return round(raw, 3)
 
@@ -94,7 +91,7 @@ def _parse_meter_tail(tail: str) -> Optional[Tuple[float, float, float, str]]:
             rodzaj = rm.group(1).upper()
         return wsk_od, wsk_do, ilosc, rodzaj
     tokens = re.findall(
-        r"\d{1,2}(?: \d{3})+,\d{2}|\d{1,3}(?: \d{3})*,\d{2}|\d+,\d{2}",
+        r"\d{1,2}(?: \d{3})+,\d{2,3}|\d{1,3}(?: \d{3})*,\d{2,3}|\d+,\d{2,3}",
         tail,
     )
     if len(tokens) >= 2:
@@ -224,11 +221,25 @@ def _parse_dane_energii_energa(text: str) -> Dict[str, Any]:
     if pobranie:
         wiersze.append({"typ": "pobranie", "opis": "Energia czynna (pobranie z sieci)", **pobranie})
     if saldo_dod:
-        wiersze.append({"typ": "saldo_dodatnie", "opis": "Suma godzinowych sald dodatnich", **saldo_dod})
+        wiersze.append(
+            {
+                "typ": "saldo_dodatnie",
+                "opis": "Suma godzinowych sald dodatnich",
+                "ilosc_kwh": saldo_dod.get("kwh"),
+                **saldo_dod,
+            }
+        )
     if wprowadzenie:
         wiersze.append({"typ": "wprowadzenie", "opis": "Energia czynna oddanie (do sieci)", **wprowadzenie})
     if saldo_ujem:
-        wiersze.append({"typ": "saldo_ujemne", "opis": "Suma godzinowych sald ujemnych", **saldo_ujem})
+        wiersze.append(
+            {
+                "typ": "saldo_ujemne",
+                "opis": "Suma godzinowych sald ujemnych",
+                "ilosc_kwh": saldo_ujem.get("kwh"),
+                **saldo_ujem,
+            }
+        )
 
     return {
         "punkt_poboru": {
