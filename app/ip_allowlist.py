@@ -80,6 +80,7 @@ def register_ip_allowlist(app: FastAPI, templates: Jinja2Templates) -> None:
             )
 
         return templates.TemplateResponse(
+            request,
             "denied.html",
             {
                 "request": request,

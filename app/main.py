@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import json
 import logging
@@ -104,6 +104,7 @@ async def index(request: Request):
 @app.get("/start", response_class=HTMLResponse)
 async def page_start(request: Request):
     return templates.TemplateResponse(
+        request,
         "index.html",
         {"request": request, "title": "Start", "active": "home"},
     )
@@ -112,20 +113,25 @@ async def page_start(request: Request):
 @app.get("/live", response_class=HTMLResponse)
 async def page_live(request: Request):
     return templates.TemplateResponse(
-        "live.html", {"request": request, "title": "Na żywo", "active": "live"}
+        request,
+        "live.html",
+        {"request": request, "title": "Na żywo", "active": "live"},
     )
 
 
 @app.get("/chart", response_class=HTMLResponse)
 async def page_chart(request: Request):
     return templates.TemplateResponse(
-        "chart.html", {"request": request, "title": "Wykres mocy", "active": "chart"}
+        request,
+        "chart.html",
+        {"request": request, "title": "Wykres mocy", "active": "chart"},
     )
 
 
 @app.get("/fv", response_class=HTMLResponse)
 async def page_fv(request: Request):
     return templates.TemplateResponse(
+        request,
         "fv.html",
         {
             "request": request,
@@ -139,6 +145,7 @@ async def page_fv(request: Request):
 @app.get("/meters", response_class=HTMLResponse)
 async def page_meters(request: Request):
     return templates.TemplateResponse(
+        request,
         "meters.html",
         {
             "request": request,
