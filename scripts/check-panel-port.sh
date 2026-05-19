@@ -2,13 +2,13 @@
 # Diagnostyka: czy panel slucha i odpowiada lokalnie.
 set -u
 cd "$(dirname "$0")/.."
-PORT="${PORT:-887}"
+PORT="${PORT:-8877}"
 if [ -f .env ]; then
   # shellcheck disable=SC1091
   set -a
   source .env 2>/dev/null || true
   set +a
-  PORT="${PORT:-887}"
+  PORT="${PORT:-8877}"
 fi
 
 echo "=== str_liczniki — port $PORT ==="

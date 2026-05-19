@@ -18,7 +18,7 @@ class Settings(BaseSettings):
     )
 
     host: str = "0.0.0.0"
-    port: int = 887
+    port: int = 8877
 
     # Domyślnie MySQL (SCADA); nadpisz w .env — np. inna nazwa bazy lub hasło.
     # SQLite tylko do lokalnego demo: DATABASE_URL=sqlite:///./pv_demo.db

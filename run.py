@@ -1,5 +1,5 @@
 """
-Uruchomienie serwera www (domyślnie port z .env lub 887).
+Uruchomienie serwera www (domyślnie port z .env lub 8877).
 
 Przykład:
   python run.py
