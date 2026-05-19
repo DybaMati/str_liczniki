@@ -55,6 +55,30 @@ def client_ip_matches(ip_str: str, rules: List[str]) -> bool:
     return False
 
 
+def log_allowlist_startup() -> None:
+    """Przy starcie: jakie sieci sa dozwolone (403 to nie timeout TCP)."""
+    from .settings import get_settings
+
+    s = get_settings()
+    rules = parse_ip_rules(s.allowed_client_ips)
+    if not rules:
+        _LOG.info("ALLOWED_CLIENT_IPS: puste — dostep z kazdego IP")
+        return
+    _LOG.info("ALLOWED_CLIENT_IPS (%d regul): %s", len(rules), ", ".join(rules))
+    for rule in rules:
+        if "/" not in rule:
+            continue
+        try:
+            net = ipaddress.ip_network(rule, strict=False)
+            if rule.startswith("10.") and net.prefixlen <= 16 and not rule.endswith("/8"):
+                _LOG.warning(
+                    "Regula %s jest bardzo szeroka (/8–/16). Dla WG zwykle: 10.200.1.0/24",
+                    rule,
+                )
+        except ValueError:
+            pass
+
+
 def register_ip_allowlist(app: FastAPI, templates: Jinja2Templates) -> None:
     """Jesli ALLOWED_CLIENT_IPS jest ustawione — tylko te adresy / sieci maja dostep."""
 

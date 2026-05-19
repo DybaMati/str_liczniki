@@ -54,6 +54,30 @@ Można podać kilka adresów lub sieci **CIDR** po przecinku, np. `127.0.0.1,192
 
 Po zmianie `.env` **zrestartuj** proces (`python run.py` / usługa).
 
+**Timeout z przeglądarki (brak połączenia)** to zwykle **firewall / iptables**, nie `.env`.  
+**HTTP 403** („Wejście”) = IP spoza `ALLOWED_CLIENT_IPS`.
+
+Dla WireGuard używaj **`10.200.1.0/24`**, nie `10.200.1.0/10`.
+
+## Ubuntu / WireGuard — port 88 działa, 8765 nie
+
+Inny program (np. sport na porcie 88) może działać, a panel na **8765** — timeout z laptopa. Panel słucha na `0.0.0.0:8765`; często **iptables** ma regułę tylko dla portu 88.
+
+```bash
+bash scripts/check-panel-port.sh
+sudo bash scripts/open-firewall-port.sh 8765
+```
+
+Z laptopa (WG): `http://10.200.1.51:8765/live`  
+Diagnostyka API (gdy TCP już działa): `GET /api/health` — widać `client_ip` i `client_allowed`.
+
+Instalacja na serwerze:
+
+```bash
+bash install-ubuntu.sh
+source .venv/bin/activate && python3 run.py
+```
+
 ## Schemat bazy (MySQL)
 
 - `sofar_data` — PV: `timestamp`, `moc_w`

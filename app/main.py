@@ -13,7 +13,13 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy.exc import SQLAlchemyError
 
 from . import fv_store, str_data
-from .ip_allowlist import register_ip_allowlist
+from .ip_allowlist import (
+    client_ip_matches,
+    get_client_ip,
+    log_allowlist_startup,
+    parse_ip_rules,
+    register_ip_allowlist,
+)
 from .logutil import log_database_startup, setup_logging
 from .settings import get_settings
 
@@ -27,8 +33,10 @@ _LOG = logging.getLogger("str_liczniki")
 async def lifespan(app: FastAPI):
     setup_logging(BASE_DIR)
     log_database_startup()
+    log_allowlist_startup()
     s = get_settings()
     templates.env.globals["site_brand"] = s.site_public_name
+    _LOG.info("Nasluch: http://%s:%s (wszystkie interfejsy jesli host=0.0.0.0)", s.host, s.port)
     yield
 
 
@@ -159,6 +167,22 @@ async def page_meters(request: Request):
 @app.get("/api/ping")
 async def api_ping():
     return {"ok": True}
+
+
+@app.get("/api/health")
+async def api_health(request: Request):
+    """Diagnostyka: IP klienta i czy przeszloby allowlist (timeout TCP = firewall, 403 = .env)."""
+    s = get_settings()
+    rules = parse_ip_rules(s.allowed_client_ips)
+    ip = get_client_ip(request, s.trust_x_forwarded_for)
+
+    return {
+        "ok": True,
+        "client_ip": ip,
+        "allowlist_enabled": bool(rules),
+        "client_allowed": client_ip_matches(ip, rules) if rules else True,
+        "listen": f"{s.host}:{s.port}",
+    }
 
 
 @app.get("/api/fv")
