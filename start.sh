@@ -17,5 +17,5 @@ if ! python -c "import uvicorn" 2>/dev/null; then
 fi
 
 IP=$(hostname -I 2>/dev/null | awk '{print $1}')
-echo "Start — http://${IP:-localhost}:8765"
+echo "Start — http://${IP:-localhost}:887"
 exec python run.py

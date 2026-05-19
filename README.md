@@ -38,7 +38,7 @@ python3 run.py
 python run.py
 ```
 
-Domyślnie: `http://0.0.0.0:8765` — strony: `/live`, `/chart`, `/meters`.
+Domyślnie: `http://0.0.0.0:887` — strony: `/live`, `/chart`, `/meters`.
 
 ## Dostęp tylko z wybranych IP (Tailscale / LAN)
 
@@ -59,16 +59,16 @@ Po zmianie `.env` **zrestartuj** proces (`python run.py` / usługa).
 
 Dla WireGuard używaj **`10.200.1.0/24`**, nie `10.200.1.0/10`.
 
-## Ubuntu / WireGuard — port 88 działa, 8765 nie
+## Ubuntu / WireGuard — port 88 działa, panel nie
 
-Inny program (np. sport na porcie 88) może działać, a panel na **8765** — timeout z laptopa. Panel słucha na `0.0.0.0:8765`; często **iptables** ma regułę tylko dla portu 88.
+Inny program (np. sport na porcie 88) może działać, a panel na **887** — timeout z laptopa. Panel słucha na `0.0.0.0:887`; często **iptables** ma regułę tylko dla portu 88.
 
 ```bash
 bash scripts/check-panel-port.sh
-sudo bash scripts/open-firewall-port.sh 8765
+sudo bash scripts/open-firewall-port.sh 887
 ```
 
-Z laptopa (WG): `http://10.200.1.51:8765/live`  
+Z laptopa (WG): `http://10.200.1.51:887/live`  
 Diagnostyka API (gdy TCP już działa): `GET /api/health` — widać `client_ip` i `client_allowed`.
 
 Instalacja na serwerze:

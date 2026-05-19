@@ -1,8 +1,8 @@
 #!/bin/bash
-# Jawne ACCEPT na porcie panelu (gdy dziala :88 a :8765 timeout z WG — czesto iptables).
+# Jawne ACCEPT na porcie panelu (gdy dziala :88 a panel timeout z WG — czesto iptables).
 # Uzycie: sudo bash scripts/open-firewall-port.sh [PORT]
 set -euo pipefail
-PORT="${1:-8765}"
+PORT="${1:-887}"
 
 echo "=== Otwieram TCP $PORT (eth0 + wg0) w iptables ==="
 
