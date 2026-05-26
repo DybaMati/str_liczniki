@@ -40,6 +40,18 @@
     let option = null;
     /** Max. punktow na wykresie (wydajnosc); caly zakres dat — probkowanie rownomiernie od poczatku do konca (nie ostatnie N!) */
     const MAX_CHART_POINTS = 6000;
+    /** Jesli odstęp czasu między kolejnymi punktami jest większy niż 15 min — pokażemy „luki” */
+    const GAP_MS = 15 * 60 * 1000;
+
+    function parseTimeMs(v) {
+        if (v == null) return null;
+        var s = String(v).trim();
+        if (!s) return null;
+        // Format z backendu to najczęściej "YYYY-MM-DD HH:MM:SS" — podstawiamy na "T" żeby Date.parse ogarnął.
+        s = s.replace(' ', 'T');
+        var ms = Date.parse(s);
+        return isFinite(ms) ? ms : null;
+    }
 
     function pickPointsEvenly(arr, maxLen) {
         if (!arr || !arr.length) return [];
@@ -201,11 +213,11 @@ r += p.seriesName + ': <b>' + Math.round(p.value) + ' W</b><br/>'; }); return r;
                 { type: 'inside', start: 0, end: 100 }
             ],
             series: [
-                { name: 'PV produkcja', type: 'line', data: [], showSymbol: false, lineStyle: { color: '#f59e0b', width: 4 }, itemStyle: { color: '#f59e0b' } },
-                { name: 'Tomek L1',     type: 'line', data: [], showSymbol: false, lineStyle: { color: '#3b82f6', width: 2.5 }, itemStyle: { color: '#3b82f6' } },
-                { name: 'Lonia L2',     type: 'line', data: [], showSymbol: false, lineStyle: { color: '#8b5cf6', width: 2.5 }, itemStyle: { color: '#8b5cf6' } },
-                { name: 'Henia L3',     type: 'line', data: [], showSymbol: false, lineStyle: { color: '#10b981', width: 2.5 }, itemStyle: { color: '#10b981' } },
-                { name: 'Suma zużycia', type: 'line', data: [], showSymbol: false, lineStyle: { color: '#ef4444', width: 2.5, type: 'dashed' }, itemStyle: { color: '#ef4444' } }
+                { name: 'PV produkcja', type: 'line', data: [], showSymbol: false, connectNulls: false, lineStyle: { color: '#f59e0b', width: 4 }, itemStyle: { color: '#f59e0b' } },
+                { name: 'Tomek L1',     type: 'line', data: [], showSymbol: false, connectNulls: false, lineStyle: { color: '#3b82f6', width: 2.5 }, itemStyle: { color: '#3b82f6' } },
+                { name: 'Lonia L2',     type: 'line', data: [], showSymbol: false, connectNulls: false, lineStyle: { color: '#8b5cf6', width: 2.5 }, itemStyle: { color: '#8b5cf6' } },
+                { name: 'Henia L3',     type: 'line', data: [], showSymbol: false, connectNulls: false, lineStyle: { color: '#10b981', width: 2.5 }, itemStyle: { color: '#10b981' } },
+                { name: 'Suma zużycia', type: 'line', data: [], showSymbol: false, connectNulls: false, lineStyle: { color: '#ef4444', width: 2.5, type: 'dashed' }, itemStyle: { color: '#ef4444' } }
             ]
         };
 
@@ -222,18 +234,57 @@ r += p.seriesName + ': <b>' + Math.round(p.value) + ' W</b><br/>'; }); return r;
         var slice = pickPointsEvenly(data, MAX_CHART_POINTS);
         const times = [];
         const s0 = [], s1 = [], s2 = [], s3 = [], s4 = [];
-        slice.forEach(function(p) {
-            const sum = (p.l1_w || 0) + (p.l2_w || 0) + (p.l3_w || 0);
-            times.push(p.time);
-            s0.push(Math.round(p.pv_w || 0));
-            s1.push(Math.round(p.l1_w || 0));
-            s2.push(Math.round(p.l2_w || 0));
-            s3.push(Math.round(p.l3_w || 0));
-            s4.push(Math.round(sum));
-        });
+        let prevMs = null;
+        let prevTime = null;
+        const markAreas = [];
+        for (var i = 0; i < slice.length; i++) {
+            var p = slice[i];
+            var t = p.time;
+            var ms = parseTimeMs(t);
+
+            var hasGap = (prevMs != null && ms != null && (ms - prevMs) > GAP_MS);
+
+            times.push(t);
+
+            if (hasGap) {
+                // „Łuk” dla czasu braku łączności + ucięcie linii (null = przerwanie).
+                markAreas.push([{ xAxis: prevTime }, { xAxis: t }]);
+                s0.push(null);
+                s1.push(null);
+                s2.push(null);
+                s3.push(null);
+                s4.push(null);
+            } else {
+                const sum = (p.l1_w || 0) + (p.l2_w || 0) + (p.l3_w || 0);
+                s0.push(Math.round(p.pv_w || 0));
+                s1.push(Math.round(p.l1_w || 0));
+                s2.push(Math.round(p.l2_w || 0));
+                s3.push(Math.round(p.l3_w || 0));
+                s4.push(Math.round(sum));
+            }
+
+            prevMs = ms;
+            prevTime = t;
+        }
         option.xAxis.data = times;
         lastXTickSet = visibleTickIndexSet(times.length, X_AXIS_MAX_TICKS);
         option.xAxis.axisLabel.interval = xAxisIntervalFn;
+
+        // Zacienienie luk — rysujemy na jednej serii (markArea działa jako „tło” w obszarze wykresu),
+        // ale dla pewności ustawiamy na wszystkich.
+        var areaOpt = markAreas.length
+            ? {
+                silent: true,
+                itemStyle: {
+                    color: 'rgba(148,163,184,0.18)',
+                    borderColor: 'rgba(148,163,184,0.45)',
+                    borderWidth: 1
+                },
+                data: markAreas
+            }
+            : { silent: true, data: [] };
+        for (var si = 0; si < option.series.length; si++) option.series[si].markArea = areaOpt;
+
         option.series[0].data = s0;
         option.series[1].data = s1;
         option.series[2].data = s2;
