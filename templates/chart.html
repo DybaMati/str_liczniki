@@ -38,10 +38,11 @@
 (function() {
     let chart = null;
     let option = null;
+    let gapIntervals = [];
     /** Max. punktow na wykresie (wydajnosc); caly zakres dat — probkowanie rownomiernie od poczatku do konca (nie ostatnie N!) */
     const MAX_CHART_POINTS = 6000;
-    /** Jesli odstęp czasu między kolejnymi punktami jest większy niż 15 min — pokażemy „luki” */
-    const GAP_MS = 15 * 60 * 1000;
+    /** Jesli odstęp czasu między kolejnymi punktami jest większy niż 10 min — pokażemy „luki” */
+    const GAP_MS = 10 * 60 * 1000;
 
     function parseTimeMs(v) {
         if (v == null) return null;
@@ -51,6 +52,13 @@
         s = s.replace(' ', 'T');
         var ms = Date.parse(s);
         return isFinite(ms) ? ms : null;
+    }
+
+    function pad2(n) { return String(n).padStart(2, '0'); }
+    function fmtTimeMs(ms) {
+        if (ms == null || !isFinite(ms)) return '';
+        var d = new Date(ms);
+        return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate()) + ' ' + pad2(d.getHours()) + ':' + pad2(d.getMinutes());
     }
 
     function pickPointsEvenly(arr, maxLen) {
@@ -78,7 +86,20 @@
     /** Data w pierwszej linii, godzina pod spodem — brak nachodzenia jak przy jednej linii */
     function formatAxisDateTime(value) {
         if (value == null || value === '') return '';
+        // Dla osi czasu ECharts podaje zwykle timestamp (ms).
+        if (typeof value === 'number' && isFinite(value)) {
+            var d = new Date(value);
+            var pad2 = function(n) { return String(n).padStart(2, '0'); };
+            var dateStr = d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate());
+            var timeStr = pad2(d.getHours()) + ':' + pad2(d.getMinutes()) + ':' + pad2(d.getSeconds());
+            return dateStr + '\n' + timeStr;
+        }
         var s = String(value);
+        // Jeśli wartość to sama liczba (np. jako string) — też traktujemy jak timestamp.
+        if (/^\d{10,13}$/.test(s)) {
+            var ms = parseInt(s, 10);
+            if (isFinite(ms)) return formatAxisDateTime(ms);
+        }
         var m = s.match(/^(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2}:\d{2})/);
         if (m) return m[1] + '\n' + m[2];
         return s;
@@ -159,7 +180,6 @@
                     rotate: 0,
                     lineHeight: 14,
                     formatter: formatAxisDateTime,
-                    interval: xAxisIntervalFn,
                     hideOverlap: true
                 }
             },
@@ -182,9 +202,24 @@
         option = {
             backgroundColor: 'transparent',
             grid: { left: 10, right: 10, top: 45, bottom: 108, containLabel: true },
-            tooltip: { trigger: 'axis', axisPointer: { type: 'cross' }, formatter: function(params) { let r =
-'<b>' + params[0].axisValueLabel + '</b><br/>'; params.forEach(function(p) { if (p.value == null) return; r += '<span style="display:inline-block;width:10px;height:10px;background:' + p.color + ';margin-right:4px;border-radius:50%"></span>';
-r += p.seriesName + ': <b>' + Math.round(p.value) + ' W</b><br/>'; }); return r; } },
+            tooltip: { trigger: 'axis', axisPointer: { type: 'cross' }, formatter: function(params) { 
+                let r =
+'<b>' + params[0].axisValueLabel + '</b><br/>';
+                var axisVal = params && params[0] ? params[0].axisValue : null;
+                var axisMs = (typeof axisVal === 'number') ? axisVal : parseTimeMs(axisVal);
+                if (axisMs != null && gapIntervals && gapIntervals.length) {
+                    for (var gi = 0; gi < gapIntervals.length; gi++) {
+                        var g = gapIntervals[gi];
+                        if (axisMs >= g.startMs && axisMs <= g.endMs) {
+                            var mins = Math.max(0, Math.round((g.endMs - g.startMs) / 60000));
+                            r += '<div style="margin-top:6px;color:#94a3b8;font-size:12px;line-height:1.4">Brak danych od <b>' + fmtTimeMs(g.startMs) + '</b> do <b>' + fmtTimeMs(g.endMs) + '</b> (' + mins + ' min)</div>';
+                            break;
+                        }
+                    }
+                }
+                params.forEach(function(p) { if (p.value == null) return; var v = p.value; if (Array.isArray(v)) v = v[1]; if (v == null) return; r += '<span style="display:inline-block;width:10px;height:10px;background:' + p.color + ';margin-right:4px;border-radius:50%"></span>';
+                r += p.seriesName + ': <b>' + Math.round(v) + ' W</b><br/>'; }); 
+                return r; } },
             legend: {
                 data: ['PV produkcja', 'Tomek L1', 'Lonia L2', 'Henia L3', 'Suma zużycia'],
                 icon: 'rect',
@@ -196,15 +231,13 @@ r += p.seriesName + ': <b>' + Math.round(p.value) + ' W</b><br/>'; }); return r;
                 left: 'center'
             },
             xAxis: {
-                type: 'category',
-                data: [],
+                type: 'time',
                 axisLabel: {
                     color: '#ccc',
                     fontSize: 10,
                     lineHeight: 14,
                     formatter: formatAxisDateTime,
-                    hideOverlap: true,
-                    interval: xAxisIntervalFn
+                    hideOverlap: true
                 }
             },
             yAxis: { type: 'value', name: 'W', nameTextStyle: { color: '#ccc' }, axisLabel: { color: '#ccc' } },
@@ -232,11 +265,11 @@ r += p.seriesName + ': <b>' + Math.round(p.value) + ' W</b><br/>'; }); return r;
     function loadData(data) {
         if (!data || !data.length || !chart) return null;
         var slice = pickPointsEvenly(data, MAX_CHART_POINTS);
-        const times = [];
         const s0 = [], s1 = [], s2 = [], s3 = [], s4 = [];
         let prevMs = null;
         let prevTime = null;
         const markAreas = [];
+        gapIntervals = [];
         for (var i = 0; i < slice.length; i++) {
             var p = slice[i];
             var t = p.time;
@@ -244,31 +277,27 @@ r += p.seriesName + ': <b>' + Math.round(p.value) + ' W</b><br/>'; }); return r;
 
             var hasGap = (prevMs != null && ms != null && (ms - prevMs) > GAP_MS);
 
-            times.push(t);
-
             if (hasGap) {
                 // „Łuk” dla czasu braku łączności + ucięcie linii (null = przerwanie).
-                markAreas.push([{ xAxis: prevTime }, { xAxis: t }]);
-                s0.push(null);
-                s1.push(null);
-                s2.push(null);
-                s3.push(null);
-                s4.push(null);
+                markAreas.push([{ xAxis: prevMs }, { xAxis: ms }]);
+                gapIntervals.push({ startMs: prevMs, endMs: ms });
+                s0.push([ms, null]);
+                s1.push([ms, null]);
+                s2.push([ms, null]);
+                s3.push([ms, null]);
+                s4.push([ms, null]);
             } else {
                 const sum = (p.l1_w || 0) + (p.l2_w || 0) + (p.l3_w || 0);
-                s0.push(Math.round(p.pv_w || 0));
-                s1.push(Math.round(p.l1_w || 0));
-                s2.push(Math.round(p.l2_w || 0));
-                s3.push(Math.round(p.l3_w || 0));
-                s4.push(Math.round(sum));
+                s0.push([ms, Math.round(p.pv_w || 0)]);
+                s1.push([ms, Math.round(p.l1_w || 0)]);
+                s2.push([ms, Math.round(p.l2_w || 0)]);
+                s3.push([ms, Math.round(p.l3_w || 0)]);
+                s4.push([ms, Math.round(sum)]);
             }
 
             prevMs = ms;
             prevTime = t;
         }
-        option.xAxis.data = times;
-        lastXTickSet = visibleTickIndexSet(times.length, X_AXIS_MAX_TICKS);
-        option.xAxis.axisLabel.interval = xAxisIntervalFn;
 
         // Zacienienie luk — rysujemy na jednej serii (markArea działa jako „tło” w obszarze wykresu),
         // ale dla pewności ustawiamy na wszystkich.
