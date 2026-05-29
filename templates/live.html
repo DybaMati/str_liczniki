@@ -150,6 +150,7 @@ main { max-width: min(100%, 1600px); }
 {% endblock %}
 {% block scripts %}
 <script>
+/* live-js-v3 — bez markCompareHigher/newestTsSplit */
 function fmtW(n){return (n==null||Number.isNaN(n))?'-':(Math.round(n*10)/10).toFixed(1)+' W';}
 function fmtV(n){return (n==null||Number.isNaN(n))?'-':(Math.round(n*10)/10).toFixed(1)+' V';}
 function fmtA(n){return (n==null||Number.isNaN(n))?'-':(Math.round(n*10)/10).toFixed(1)+' A';}
@@ -199,28 +200,6 @@ function parseTimeMs(v) {
   s = s.replace(' ', 'T');
   var ms = Date.parse(s);
   return isFinite(ms) ? ms : null;
-}
-
-function newestTsSplit() {
-  var best = null;
-  var bestMs = -1;
-  for (var i = 0; i < arguments.length; i++) {
-    var ms = parseTimeMs(arguments[i]);
-    if (ms != null && ms > bestMs) {
-      bestMs = ms;
-      best = arguments[i];
-    }
-  }
-  return splitDateTime(best);
-}
-
-function markCompareHigher(elA, elB, numA, numB) {
-  if (!elA || !elB) return;
-  elA.classList.remove('pv-higher');
-  elB.classList.remove('pv-higher');
-  if (numA == null || numB == null || Number.isNaN(numA) || Number.isNaN(numB)) return;
-  if (numA > numB) elA.classList.add('pv-higher');
-  else if (numB > numA) elB.classList.add('pv-higher');
 }
 
 let _echartsLoaded = false;
@@ -555,11 +534,24 @@ async function tick(){
     var sumW=(j.l1_w||0)+(j.l2_w||0)+(j.l3_w||0);
     if(pvEl) pvEl.textContent=fmtW(pvW);
     if(sumEl) sumEl.textContent=fmtW(sumW);
-    markCompareHigher(pvEl, sumEl, pvW, sumW);
+    if (pvEl && sumEl) {
+      pvEl.classList.remove('pv-higher');
+      sumEl.classList.remove('pv-higher');
+      if (!Number.isNaN(pvW) && !Number.isNaN(sumW)) {
+        if (pvW > sumW) pvEl.classList.add('pv-higher');
+        else if (sumW > pvW) sumEl.classList.add('pv-higher');
+      }
+    }
     var pvDt=splitDateTime(j.pv_ts);
     setTxt('pv-pv-d', pvDt.d);
     setTxt('pv-pv-t', pvDt.t);
-    var sumDt=newestTsSplit(j.l1_ts, j.l2_ts, j.l3_ts, j.time);
+    var sumBestTs = null;
+    var sumBestMs = -1;
+    [j.l1_ts, j.l2_ts, j.l3_ts, j.time].forEach(function (ts) {
+      var ms = parseTimeMs(ts);
+      if (ms != null && ms > sumBestMs) { sumBestMs = ms; sumBestTs = ts; }
+    });
+    var sumDt = splitDateTime(sumBestTs);
     setTxt('pv-sum-d', sumDt.d);
     setTxt('pv-sum-t', sumDt.t);
     var useTodayEl=document.getElementById('pv-use-today');
@@ -568,7 +560,16 @@ async function tick(){
     var pvK=j.kwh_pv_today;
     if(useTodayEl) useTodayEl.textContent=fmtKwhDelta(useK);
     if(pvTodayEl) pvTodayEl.textContent=fmtKwhDelta(pvK);
-    markCompareHigher(pvTodayEl, useTodayEl, pvK, useK);
+    if (pvTodayEl && useTodayEl) {
+      pvTodayEl.classList.remove('pv-higher');
+      useTodayEl.classList.remove('pv-higher');
+      var pvKn = (pvK == null) ? NaN : Number(pvK);
+      var useKn = (useK == null) ? NaN : Number(useK);
+      if (!Number.isNaN(pvKn) && !Number.isNaN(useKn)) {
+        if (pvKn > useKn) pvTodayEl.classList.add('pv-higher');
+        else if (useKn > pvKn) useTodayEl.classList.add('pv-higher');
+      }
+    }
     setTxt('today-label', j.today_period_label || '-');
     var netEl=document.getElementById('bal-net');
     var net=j.kwh_balance_today;
