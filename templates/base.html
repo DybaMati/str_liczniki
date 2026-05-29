@@ -59,10 +59,12 @@
       font-variant-numeric: tabular-nums;
       white-space: nowrap;
       line-height: 1.1;
-      color: #cbd5e1;
-      font-size: 12px;
-      font-weight: 500;
-      letter-spacing: 0.02em;
+      color: #f8fafc;
+      font-size: clamp(1.05rem, 2.5vw, 2.05rem);
+      font-weight: 600;
+      letter-spacing: 0.03em;
+      max-width: 100%;
+      text-align: right;
     }
     .nav-pill {
       display: inline-flex;
@@ -160,14 +162,24 @@
         padding-top: 6px;
         border-top: 1px solid #2a2a2a;
         gap: 6px 8px;
-        justify-content: space-between;
-        flex-wrap: nowrap;
+        display: grid;
+        grid-template-columns: auto auto minmax(0, 1fr);
+        align-items: center;
       }
+      #nav-tcp { justify-self: start; }
+      #nav-refresh { justify-self: start; }
+      #nav-clock { justify-self: end; grid-column: 3; }
       #nav-traffic { display: none; }
-      .nav-pill { font-size: 10px; padding: 4px 8px; gap: 4px; max-width: 48%; }
+      .nav-pill { font-size: 10px; padding: 4px 8px; gap: 4px; }
       .nav-pill-dot { width: 6px; height: 6px; }
       .nav-pill-data .nav-pill-val { font-size: 11px; }
       #nav-refresh .nav-pill-val { font-size: 10px; }
+      .nav-clock {
+        font-size: clamp(11px, 3.1vw, 15px);
+        font-weight: 600;
+        color: #e5e5e5;
+        letter-spacing: 0.02em;
+      }
     }
     .toast-copy {
       position: fixed;
@@ -221,7 +233,7 @@
         <span class="nav-pill-label">Ruch</span>
         <span class="nav-pill-val" id="nav-traffic-val">0,00 MB</span>
       </span>
-      <span class="nav-clock nav-desktop-only" id="nav-clock" aria-hidden="true">--</span>
+      <div class="nav-clock" id="nav-clock">--</div>
     </div>
   </nav>
   <div class="toast-copy" id="toast-copy" role="status" aria-live="polite"></div>
@@ -236,7 +248,7 @@
     var trafficVal = document.getElementById('nav-traffic-val');
     var refreshVal = document.getElementById('nav-refresh-val');
     var toastCopy = document.getElementById('toast-copy');
-    if (!tcpEl || !tcpText || !refreshVal) return;
+    if (!tcpEl || !tcpText || !refreshVal || !clockEl) return;
 
     var totalBytes = 0;
     var tcpOk = null;
