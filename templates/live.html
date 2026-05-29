@@ -164,9 +164,7 @@ main { max-width: min(100%, 1600px); }
 {% block scripts %}
 <script>
 /* live-js-v3 — bez markCompareHigher/newestTsSplit */
-function fmtW(n){return (n==null||Number.isNaN(n))?'-':(Math.round(n*10)/10).toFixed(1)+' W';}
-/** Moc na kartach PV / suma L1–L3 — calowite waty, bez przecinka */
-function fmtWPower(n){
+function fmtW(n){
   if(n==null||Number.isNaN(n)) return '-';
   return Math.round(n)+' W';
 }
@@ -294,7 +292,7 @@ function drawSparkline(container, series, yMax){
       dataPairs.push([ms, null]);
       idxToTs.push(p.ts);
     } else {
-      dataPairs.push([ms, Math.round((p.w || 0) * 10) / 10]);
+      dataPairs.push([ms, Math.round(p.w || 0)]);
       idxToTs.push(p.ts);
     }
     prevMs = ms;
@@ -577,8 +575,8 @@ async function tick(){
     var sumEl=document.getElementById('pv-sum');
     var pvW=Number(j.pv_w);
     var sumW=(j.l1_w||0)+(j.l2_w||0)+(j.l3_w||0);
-    if(pvEl) pvEl.textContent=fmtWPower(pvW);
-    if(sumEl) sumEl.textContent=fmtWPower(sumW);
+    if(pvEl) pvEl.textContent=fmtW(pvW);
+    if(sumEl) sumEl.textContent=fmtW(sumW);
     if (pvEl && sumEl) {
       pvEl.classList.remove('pv-higher');
       sumEl.classList.remove('pv-higher');
