@@ -251,7 +251,7 @@
         chart.setOption(option);
     }
 
-    function scheduleLoad() {
+    function startLoad(immediate) {
         const from = document.getElementById('pv-from').value;
         const to = document.getElementById('pv-to').value;
         const status = document.getElementById('pv-chart-status');
@@ -266,6 +266,11 @@
         abortActiveFetch();
         clearChartData();
         if (status) status.textContent = '';
+
+        if (immediate) {
+            runLoadWrapped(from, to, seq);
+            return;
+        }
 
         var secLeft = Math.ceil(LOAD_DELAY_MS / 1000);
         showOverlayUi({
@@ -529,7 +534,7 @@
         setTimeout(function() { chart.resize(); chartResponsive(); }, 300);
         window.addEventListener('resize', function() { chartResponsive(); });
         initDateInputs();
-        scheduleLoad();
+        startLoad(false);
     }
 
     function loadData(data) {
@@ -601,7 +606,7 @@
 
     bootChartPage();
 
-    document.getElementById('pv-send').addEventListener('click', scheduleLoad);
+    document.getElementById('pv-send').addEventListener('click', function () { startLoad(true); });
     document.getElementById('chart-cancel').addEventListener('click', cancelLoad);
 })();
 </script>
