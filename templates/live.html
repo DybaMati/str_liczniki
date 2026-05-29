@@ -201,6 +201,28 @@ function parseTimeMs(v) {
   return isFinite(ms) ? ms : null;
 }
 
+function newestTsSplit() {
+  var best = null;
+  var bestMs = -1;
+  for (var i = 0; i < arguments.length; i++) {
+    var ms = parseTimeMs(arguments[i]);
+    if (ms != null && ms > bestMs) {
+      bestMs = ms;
+      best = arguments[i];
+    }
+  }
+  return splitDateTime(best);
+}
+
+function markCompareHigher(elA, elB, numA, numB) {
+  if (!elA || !elB) return;
+  elA.classList.remove('pv-higher');
+  elB.classList.remove('pv-higher');
+  if (numA == null || numB == null || Number.isNaN(numA) || Number.isNaN(numB)) return;
+  if (numA > numB) elA.classList.add('pv-higher');
+  else if (numB > numA) elB.classList.add('pv-higher');
+}
+
 let _echartsLoaded = false;
 let _chartRefs = [];
 let _nextTickTimer = null;
@@ -504,14 +526,14 @@ async function tick(){
       scheduleNextTick(5);
       return;
     }
-    if (!r.ok || !j.ok) {
+    if (!j.ok) {
       var errMsg = (j && j.error) ? j.error : ('HTTP ' + r.status);
       if(loadingEl) { loadingEl.classList.add('is-done'); loadingEl.style.display='none'; }
       showConnModal(errMsg || 'Brak danych w bazie.');
       showRetryMessage((errMsg || 'Brak danych w bazie') + '.', 5);
       if (!_metersInitialized) {
         var mgErr = document.getElementById('meter-grid');
-        if (mgErr) mgErr.innerHTML='<p class="err">'+(j.error||'Brak danych')+'</p>';
+        if (mgErr) mgErr.innerHTML='<p class="err">'+(errMsg||'Brak danych')+'</p>';
       }
       scheduleNextTick(5);
       return;
