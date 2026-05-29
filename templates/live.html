@@ -24,7 +24,6 @@ main { max-width: min(100%, 1600px); }
 .pv-card-info{font-size:12px;color:#888;margin:10px 0 0;line-height:1.45}
 .pv-card-info strong{font-weight:600;color:#a3a3a3}
 .pv-card-info .pv-card-info-ts{display:block;font-size:11px;color:#666;margin-top:4px}
-.kwh-odo .sep-group{display:inline-block;width:0.35em;color:#6b7280}
 .pv-card-value{font-size:22px;font-weight:600;margin:0}
 .pv-meta{color:#888;font-size:13px;margin:0;min-height:0}
 .pv-meta:empty{display:none}
@@ -176,10 +175,7 @@ function fmtKOdo(n){
   var left=leftRaw.length < 5 ? leftRaw.padStart(5,'0') : leftRaw;
   var right=(parts[1]||'00');
   var h='<span class="kwh-odo">';
-  for(var i=0;i<left.length;i++){
-    if(i>0 && (left.length-i)%3===0) h += '<span class="sep sep-group" aria-hidden="true"> </span>';
-    h += '<span class="cell">'+left.charAt(i)+'</span>';
-  }
+  for(var i=0;i<left.length;i++){ h += '<span class="cell">'+left.charAt(i)+'</span>'; }
   h += '<span class="sep">,</span>';
   h += '<span class="cell dec">'+right.charAt(0)+'</span>';
   h += '<span class="cell dec">'+right.charAt(1)+'</span>';
