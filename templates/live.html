@@ -27,9 +27,6 @@ main { max-width: min(100%, 1600px); }
 .pv-card-value{font-size:22px;font-weight:600;margin:0}
 .pv-meta{color:#888;font-size:13px;margin:0;min-height:0}
 .pv-meta:empty{display:none}
-.pv-loading{color:#93c5fd;font-size:13px;margin:0 0 8px}
-.pv-loading.is-done{display:none}
-
 .meter-grid{display:grid;grid-template-columns:1fr;gap:16px;margin-top:10px;width:100%}
 @media (min-width:960px){
   .meter-grid{grid-template-columns:repeat(3,1fr)}
@@ -81,8 +78,6 @@ main { max-width: min(100%, 1600px); }
 .conn-modal-retry{font-size:13px;color:#93c5fd;font-weight:600}
 </style>
 
-<h1 style="font-weight:600;font-size:1.2rem;margin:0 0 10px">Odczyt na zywo</h1>
-<p class="pv-loading" id="pv-loading">Ładowanie danych z serwera…</p>
 <p class="pv-meta" id="pv-status" aria-live="polite"></p>
 
 <div class="pv-top">
@@ -539,7 +534,6 @@ function setTxt(id, val) {
 
 async function tick(){
   const st=document.getElementById('pv-status');
-  const loadingEl=document.getElementById('pv-loading');
   try{
     const r=await fetch('/api/live');
     var j;
@@ -551,7 +545,6 @@ async function tick(){
     }
     if (!j.ok) {
       var errMsg = (j && j.error) ? j.error : ('HTTP ' + r.status);
-      if(loadingEl) { loadingEl.classList.add('is-done'); loadingEl.style.display='none'; }
       showConnModal(errMsg || 'Brak danych w bazie.');
       showRetryMessage((errMsg || 'Brak danych w bazie') + '.', 5);
       if (!_metersInitialized) {
@@ -563,7 +556,6 @@ async function tick(){
     }
     hideConnModal();
     clearRetryCountdown();
-    if(loadingEl) { loadingEl.classList.add('is-done'); loadingEl.style.display='none'; }
     if(st) st.textContent='';
     if (j.wat_series_hours != null) {
       _sparklineHours = parseInt(j.wat_series_hours, 10) || 11;
@@ -639,7 +631,6 @@ async function tick(){
     scheduleNextTick(20);
   }catch(e){
     console.error('tick /live:', e);
-    if(loadingEl) loadingEl.style.display='none';
     var detail = (e && e.message) ? e.message : String(e);
     showConnModal('Blad strony: ' + detail);
     showRetryMessage(detail, 5);

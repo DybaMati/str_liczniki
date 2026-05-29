@@ -350,6 +350,8 @@
         var items = data.invoices || [];
         if (!items.length) {
           listUl.innerHTML = '<li class="fv-empty">Brak zapisanych FV</li>';
+          activeId = null;
+          detail.innerHTML = '<p class="fv-empty">Wybierz fakturę z listy lub wgraj nową.</p>';
           return;
         }
         listUl.innerHTML = items.map(function (it) {
@@ -367,9 +369,14 @@
           btn.addEventListener('click', function () { selectInvoice(btn.getAttribute('data-id')); });
         });
         bindTrashButtons();
-        if (selectId) selectInvoice(selectId);
-        else if (activeId && items.some(function (x) { return x.id === activeId; })) selectInvoice(activeId);
-        else if (items[0]) selectInvoice(items[0].id);
+        if (selectId) {
+          selectInvoice(selectId);
+        } else if (activeId && items.some(function (x) { return x.id === activeId; })) {
+          selectInvoice(activeId);
+        } else {
+          activeId = null;
+          detail.innerHTML = '<p class="fv-empty">Wybierz fakturę z listy lub wgraj nową.</p>';
+        }
       })
       .catch(function () {
         listUl.innerHTML = '<li class="fv-err">Nie można załadować listy FV</li>';
