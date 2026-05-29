@@ -251,6 +251,7 @@ async function loadMeters() {
       body.appendChild(tr);
     });
     renderCards(j.meters, pcts);
+    if (window.panelMarkRefreshed) window.panelMarkRefreshed();
     status.textContent = 'Dni: ' + j.from + ' → ' + j.to;
     renderBalance(j);
   } catch (e) {

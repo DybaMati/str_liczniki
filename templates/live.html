@@ -15,8 +15,10 @@ main { max-width: min(100%, 1600px); }
 .pv-card-upd .d{display:block}
 .pv-card-upd .t{display:block}
 .pv-card-value{font-size:22px;font-weight:600;margin:0}
-.pv-meta{color:#888;font-size:13px;margin:0 0 10px}
+.pv-meta{color:#888;font-size:13px;margin:0;min-height:0}
+.pv-meta:empty{display:none}
 .pv-loading{color:#93c5fd;font-size:13px;margin:0 0 8px}
+.pv-loading.is-done{display:none}
 
 .meter-grid{display:grid;grid-template-columns:1fr;gap:16px;margin-top:10px;width:100%}
 @media (min-width:960px){
@@ -66,8 +68,8 @@ main { max-width: min(100%, 1600px); }
 </style>
 
 <h1 style="font-weight:600;font-size:1.2rem;margin:0 0 10px">Odczyt na zywo</h1>
-<p class="pv-loading" id="pv-loading">Ladowanie danych z serwera...</p>
-<p class="pv-meta" id="pv-status"></p>
+<p class="pv-loading" id="pv-loading">Ładowanie danych z serwera…</p>
+<p class="pv-meta" id="pv-status" aria-live="polite"></p>
 
 <div class="pv-top">
   <div class="pv-card">
@@ -196,6 +198,7 @@ let _echartsLoaded = false;
 let _chartRefs = [];
 let _nextTickTimer = null;
 let _retryCountdownTimer = null;
+let _metersInitialized = false;
 function disposeCharts(){
   _chartRefs.forEach(function(c){ try{c.dispose();}catch(e){} });
   _chartRefs = [];
@@ -244,6 +247,7 @@ function drawSparkline(container, series, yMax){
     ? { silent: true, data: markAreas, itemStyle: { color: 'rgba(148,163,184,0.18)', borderColor: 'rgba(148,163,184,0.45)', borderWidth: 1 } }
     : undefined;
 
+  if (_chartRefs.indexOf(chart) < 0) _chartRefs.push(chart);
   chart.setOption({
     animation: false,
     grid: {left: 44, right: 14, top: 10, bottom: 28},
@@ -308,35 +312,107 @@ function drawSparkline(container, series, yMax){
       areaStyle:{opacity:0.08,color:'#3b82f6'}
     }]
   });
-  _chartRefs.push(chart);
   requestAnimationFrame(function(){ try{ chart.resize(); }catch(e){} });
 }
 
-function renderMeters(cards, yMax){
-  const box=document.getElementById('meter-grid');
-  disposeCharts();
-  box.innerHTML='';
-  cards.forEach(function(c,idx){
-    const id='spark-'+idx;
-    const dt=splitDateTime(c.ts);
-    const el=document.createElement('article');
-    el.className='meter-card';
-    el.innerHTML =
-      '<div class="meter-head">'+
-      '  <h3 class="meter-title">'+(c.label||'Licznik')+'</h3>'+
-      '  <div class="meter-upd">ostatnia aktualizacja<span class="d">'+dt.d+'</span><span class="t">'+dt.t+'</span></div>'+
-      '</div>'+
-      '<div class="meter-rows">'+
-      '  <div class="meter-row"><b>Voltage</b><span>'+fmtV(c.voltage_v)+'</span></div>'+
-      '  <div class="meter-row"><b>Wat</b><span>'+fmtW(c.wat_w)+'</span></div>'+
-      '  <div class="spark-wrap"><b>Wat wykres</b><div class="spark" id="'+id+'"></div></div>'+
-      '  <div class="meter-row"><b>Amper</b><span>'+fmtA(c.amp_a)+'</span></div>'+
-      '  <div class="meter-row"><b>Zuzycie licznik</b><span>'+fmtKOdo(c.kwh)+'</span></div>'+
-      '  <div class="meter-row"><b>Zuzyto dzisiaj</b><span>'+fmtKwhDelta(c.kwh_today)+'</span></div>'+
-      '</div>';
-    box.appendChild(el);
-    drawSparkline(el.querySelector('#'+id), c.wat_series||[], yMax);
-  });
+function bindCopyable(el, plain) {
+  if (!el) return;
+  el.setAttribute('data-copy', plain);
+  if (window.panelCopyOnLongPress) window.panelCopyOnLongPress(el);
+}
+
+function createMeterCard(c, idx, yMax) {
+  const id = 'spark-' + idx;
+  const dt = splitDateTime(c.ts);
+  const el = document.createElement('article');
+  el.className = 'meter-card';
+  el.setAttribute('data-meter-idx', String(idx));
+  el.innerHTML =
+    '<div class="meter-head">'+
+    '  <h3 class="meter-title">'+(c.label||'Licznik')+'</h3>'+
+    '  <div class="meter-upd">ostatnia aktualizacja<span class="d" data-f="upd-d">'+dt.d+'</span><span class="t" data-f="upd-t">'+dt.t+'</span></div>'+
+    '</div>'+
+    '<div class="meter-rows">'+
+    '  <div class="meter-row"><b>Voltage</b><span data-f="voltage"></span></div>'+
+    '  <div class="meter-row"><b>Wat</b><span data-f="wat"></span></div>'+
+    '  <div class="spark-wrap"><b>Wat wykres</b><div class="spark" id="'+id+'"></div></div>'+
+    '  <div class="meter-row"><b>Amper</b><span data-f="amp"></span></div>'+
+    '  <div class="meter-row"><b>Zuzycie licznik</b><span data-f="kwh"></span></div>'+
+    '  <div class="meter-row"><b>Zuzyto dzisiaj</b><span data-f="kwh-today"></span></div>'+
+    '</div>';
+  updateMeterCard(el, c, yMax);
+  return el;
+}
+
+function updateMeterCard(el, c, yMax) {
+  if (!el) return;
+  var dt = splitDateTime(c.ts);
+  var dEl = el.querySelector('[data-f="upd-d"]');
+  var tEl = el.querySelector('[data-f="upd-t"]');
+  if (dEl) dEl.textContent = dt.d;
+  if (tEl) tEl.textContent = dt.t;
+
+  var vEl = el.querySelector('[data-f="voltage"]');
+  var wEl = el.querySelector('[data-f="wat"]');
+  var aEl = el.querySelector('[data-f="amp"]');
+  var kEl = el.querySelector('[data-f="kwh"]');
+  var ktEl = el.querySelector('[data-f="kwh-today"]');
+
+  var vTxt = fmtV(c.voltage_v);
+  var wTxt = fmtW(c.wat_w);
+  var aTxt = fmtA(c.amp_a);
+  var kTxt = (c.kwh != null && !Number.isNaN(c.kwh)) ? String(Math.round(c.kwh * 100) / 100) : '-';
+  var ktTxt = fmtKwhDelta(c.kwh_today);
+
+  if (vEl) { vEl.textContent = vTxt; bindCopyable(vEl, vTxt); }
+  if (wEl) { wEl.textContent = wTxt; bindCopyable(wEl, wTxt); }
+  if (aEl) { aEl.textContent = aTxt; bindCopyable(aEl, aTxt); }
+  if (kEl) { kEl.innerHTML = fmtKOdo(c.kwh); bindCopyable(kEl, kTxt); }
+  if (ktEl) { ktEl.textContent = ktTxt; bindCopyable(ktEl, ktTxt); }
+
+  var spark = el.querySelector('.spark');
+  drawSparkline(spark, c.wat_series || [], yMax);
+}
+
+function renderMeters(cards, yMax) {
+  const box = document.getElementById('meter-grid');
+  if (!box) return;
+
+  if (!_metersInitialized) {
+    disposeCharts();
+    box.innerHTML = '';
+    (cards || []).forEach(function (c, idx) {
+      box.appendChild(createMeterCard(c, idx, yMax));
+    });
+    _metersInitialized = true;
+    return;
+  }
+
+  var list = cards || [];
+  for (var i = 0; i < list.length; i++) {
+    var el = box.children[i];
+    if (!el || !el.classList.contains('meter-card')) {
+      el = createMeterCard(list[i], i, yMax);
+      if (box.children[i]) box.replaceChild(el, box.children[i]);
+      else box.appendChild(el);
+    } else {
+      updateMeterCard(el, list[i], yMax);
+    }
+  }
+  while (box.children.length > list.length) {
+    var rem = box.lastElementChild;
+    if (rem) {
+      var ch = rem.querySelector('.spark');
+      if (ch && window.echarts) {
+        var inst = echarts.getInstanceByDom(ch);
+        if (inst) {
+          try { inst.dispose(); } catch (e) {}
+          _chartRefs = _chartRefs.filter(function (x) { return x !== inst; });
+        }
+      }
+      box.removeChild(rem);
+    }
+  }
 }
 
 function clearRetryCountdown(){
@@ -392,17 +468,21 @@ async function tick(){
     const r=await fetch('/api/live');
     const j=await r.json();
     if(!j.ok){
-      if(loadingEl) loadingEl.style.display='none';
+      if(loadingEl) { loadingEl.classList.add('is-done'); loadingEl.style.display='none'; }
       showConnModal(j.error||'Brak danych w bazie.');
       showRetryMessage((j.error||'Brak danych w bazie') + '.', 5);
-      document.getElementById('meter-grid').innerHTML='<p class="err">'+st.textContent+'</p>';
+      if (!_metersInitialized) {
+        var mgErr = document.getElementById('meter-grid');
+        if (mgErr) mgErr.innerHTML='<p class="err">'+(j.error||'Brak danych')+'</p>';
+      }
       scheduleNextTick(5);
       return;
     }
     hideConnModal();
     clearRetryCountdown();
-    if(loadingEl) loadingEl.style.display='none';
-    st.textContent='Zrodlo: ostatni rekord z bazy (odswiezanie co 20 s)';
+    if(loadingEl) { loadingEl.classList.add('is-done'); loadingEl.style.display='none'; }
+    if(st) st.textContent='';
+    if (window.panelMarkRefreshed) window.panelMarkRefreshed();
     document.getElementById('pv-time').textContent=fmtTs(j.time);
     document.getElementById('pv-pv').textContent=fmtW(j.pv_w);
     var pvDt=splitDateTime(j.pv_ts);
@@ -432,13 +512,14 @@ async function tick(){
     showConnModal('Brak połączenia z serwerem. Sprawdz siec lub serwer API.');
     showRetryMessage('Brak polaczenia z serwerem.', 5);
     var mg=document.getElementById('meter-grid');
-    if(mg) mg.innerHTML='<p class="err">Nie udalo sie pobrac danych licznikow. '+e+'</p>';
+    if (!_metersInitialized) {
+      var mg = document.getElementById('meter-grid');
+      if (mg) mg.innerHTML='<p class="err">Nie udalo sie pobrac danych licznikow. '+e+'</p>';
+    }
     scheduleNextTick(5);
   }
 }
 
-const stBoot=document.getElementById('pv-status');
-if(stBoot) stBoot.textContent='Laczenie, pobieranie danych z API...';
 tick();
 window.addEventListener('resize', function(){ _chartRefs.forEach(function(c){ try{c.resize();}catch(e){} }); });
 </script>

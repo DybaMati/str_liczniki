@@ -45,30 +45,25 @@
     .nav a.active { background: rgba(59, 130, 246, 0.25); color: #fff; }
     .nav-status {
       margin-left: auto;
-      display: grid;
-      gap: 6px 12px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px 8px;
       max-width: 100%;
       align-items: center;
-      width: min(100%, 520px);
-      grid-template-columns: 1fr minmax(0, max-content);
-      grid-template-areas:
-        "tcp clock"
-        "traffic traffic";
+      justify-content: flex-end;
     }
-    #nav-tcp { grid-area: tcp; justify-self: start; }
+    #nav-tcp { flex: 0 1 auto; }
+    #nav-refresh { flex: 0 1 auto; }
+    #nav-traffic { flex: 0 1 auto; }
     .nav-clock {
-      grid-area: clock;
-      justify-self: end;
       font-variant-numeric: tabular-nums;
       white-space: nowrap;
       line-height: 1.1;
-      color: #f8fafc;
-      font-size: clamp(1.2rem, 2.5vw, 2.05rem);
-      font-weight: 600;
-      letter-spacing: 0.03em;
-      max-width: 100%;
+      color: #cbd5e1;
+      font-size: 12px;
+      font-weight: 500;
+      letter-spacing: 0.02em;
     }
-    #nav-traffic { grid-area: traffic; justify-self: start; }
     .nav-pill {
       display: inline-flex;
       align-items: center;
@@ -164,24 +159,38 @@
         margin-left: 0;
         padding-top: 6px;
         border-top: 1px solid #2a2a2a;
-        gap: 4px 8px;
-        grid-template-columns: 1fr minmax(0, max-content);
-        grid-template-areas:
-          "tcp clock"
-          "traffic traffic";
+        gap: 6px 8px;
+        justify-content: space-between;
+        flex-wrap: nowrap;
       }
-      #nav-tcp { justify-self: start; }
-      #nav-traffic { justify-self: start; }
-      .nav-clock {
-        justify-self: end;
-        font-size: clamp(12px, 3.8vw, 16px);
-        color: #e5e5e5;
-        letter-spacing: 0.02em;
-      }
-      .nav-pill { font-size: 10px; padding: 3px 7px; gap: 4px; }
+      #nav-traffic { display: none; }
+      .nav-pill { font-size: 10px; padding: 4px 8px; gap: 4px; max-width: 48%; }
       .nav-pill-dot { width: 6px; height: 6px; }
       .nav-pill-data .nav-pill-val { font-size: 11px; }
+      #nav-refresh .nav-pill-val { font-size: 10px; }
     }
+    .toast-copy {
+      position: fixed;
+      left: 50%;
+      bottom: max(16px, env(safe-area-inset-bottom));
+      transform: translateX(-50%) translateY(12px);
+      opacity: 0;
+      pointer-events: none;
+      background: rgba(30, 30, 30, 0.96);
+      border: 1px solid #4b5563;
+      color: #f3f4f6;
+      padding: 8px 14px;
+      border-radius: 8px;
+      font-size: 13px;
+      z-index: 10000;
+      transition: opacity 0.2s ease, transform 0.2s ease;
+    }
+    .toast-copy.show {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+    .copy-val { cursor: copy; -webkit-user-select: none; user-select: none; touch-action: manipulation; }
+    .copy-val.copy-flash { outline: 1px solid rgba(59, 130, 246, 0.65); border-radius: 4px; }
     @media (max-width: 480px) {
       .nav { padding-top: 8px; padding-bottom: 8px; }
     }
@@ -193,7 +202,6 @@
   <nav class="nav">
     <div class="nav-main">
       <strong class="nav-brand">{{ site_brand|default('Panel odczytów') }}</strong>
-      <a href="/start" class="{{ 'active' if active == 'home' else '' }}">Start</a>
       <a href="/live" class="{{ 'active' if active == 'live' else '' }}">Na żywo</a>
       <a href="/chart" class="{{ 'active' if active == 'chart' else '' }}">Wykres mocy</a>
       <a href="/meters" class="{{ 'active' if active == 'meters' else '' }}">Zużycie kWh</a>
@@ -205,13 +213,18 @@
         <span class="nav-pill-label">TCP</span>
         <span class="nav-pill-val" id="nav-tcp-text">...</span>
       </span>
-      <span class="nav-pill nav-pill-data" id="nav-traffic">
+      <span class="nav-pill nav-pill-data" id="nav-refresh">
+        <span class="nav-pill-label">Dane</span>
+        <span class="nav-pill-val" id="nav-refresh-val">—</span>
+      </span>
+      <span class="nav-pill nav-pill-data nav-desktop-only" id="nav-traffic">
         <span class="nav-pill-label">Ruch</span>
         <span class="nav-pill-val" id="nav-traffic-val">0,00 MB</span>
       </span>
-      <div class="nav-clock" id="nav-clock">--</div>
+      <span class="nav-clock nav-desktop-only" id="nav-clock" aria-hidden="true">--</span>
     </div>
   </nav>
+  <div class="toast-copy" id="toast-copy" role="status" aria-live="polite"></div>
   <main>
     {% block content %}{% endblock %}
   </main>
@@ -221,11 +234,15 @@
     var tcpEl = document.getElementById('nav-tcp');
     var tcpText = document.getElementById('nav-tcp-text');
     var trafficVal = document.getElementById('nav-traffic-val');
-    if (!clockEl || !tcpEl || !tcpText || !trafficVal) return;
+    var refreshVal = document.getElementById('nav-refresh-val');
+    var toastCopy = document.getElementById('toast-copy');
+    if (!tcpEl || !tcpText || !refreshVal) return;
 
     var totalBytes = 0;
     var tcpOk = null;
     var tcpBusy = false;
+    var lastDataRefreshAt = null;
+    var toastTimer = null;
 
     function pad2(n) { return (n < 10 ? '0' : '') + n; }
 
@@ -254,7 +271,7 @@
     }
 
     function updateTraffic() {
-      trafficVal.textContent = fmtTraffic(totalBytes);
+      if (trafficVal) trafficVal.textContent = fmtTraffic(totalBytes);
     }
 
     function setTcp(ok, checking) {
@@ -273,9 +290,86 @@
       }
     }
 
+    function tickRefreshAge() {
+      if (!lastDataRefreshAt) {
+        refreshVal.textContent = '—';
+        return;
+      }
+      var sec = Math.floor((Date.now() - lastDataRefreshAt) / 1000);
+      if (sec < 3) refreshVal.textContent = 'teraz';
+      else if (sec < 60) refreshVal.textContent = sec + ' s temu';
+      else refreshVal.textContent = Math.floor(sec / 60) + ' min temu';
+    }
+
+    window.panelMarkRefreshed = function () {
+      lastDataRefreshAt = Date.now();
+      tickRefreshAge();
+    };
+
+    function showToast(msg) {
+      if (!toastCopy) return;
+      toastCopy.textContent = msg;
+      toastCopy.classList.add('show');
+      if (toastTimer) clearTimeout(toastTimer);
+      toastTimer = setTimeout(function () { toastCopy.classList.remove('show'); }, 1600);
+    }
+
+    function copyPlainText(text) {
+      text = (text == null) ? '' : String(text).trim();
+      if (!text) return Promise.reject();
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        return navigator.clipboard.writeText(text);
+      }
+      return new Promise(function (resolve, reject) {
+        try {
+          var ta = document.createElement('textarea');
+          ta.value = text;
+          ta.setAttribute('readonly', '');
+          ta.style.position = 'fixed';
+          ta.style.left = '-9999px';
+          document.body.appendChild(ta);
+          ta.select();
+          var ok = document.execCommand('copy');
+          document.body.removeChild(ta);
+          ok ? resolve() : reject();
+        } catch (e) { reject(e); }
+      });
+    }
+
+  window.panelCopyOnLongPress = function (el) {
+    if (!el || el.__copyBound) return;
+    el.__copyBound = true;
+    el.classList.add('copy-val');
+    var pressTimer = null;
+    function clearPress() {
+      if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; }
+    }
+    function doCopy() {
+      var raw = el.getAttribute('data-copy');
+      if (raw == null) raw = (el.textContent || '').trim();
+      copyPlainText(raw).then(function () {
+        el.classList.add('copy-flash');
+        setTimeout(function () { el.classList.remove('copy-flash'); }, 400);
+        showToast('Skopiowano');
+      }).catch(function () {});
+    }
+    el.addEventListener('touchstart', function (e) {
+      clearPress();
+      pressTimer = setTimeout(function () { doCopy(); }, 550);
+    }, { passive: true });
+    el.addEventListener('touchend', clearPress, { passive: true });
+    el.addEventListener('touchmove', clearPress, { passive: true });
+    el.addEventListener('touchcancel', clearPress, { passive: true });
+    el.addEventListener('contextmenu', function (e) {
+      e.preventDefault();
+      doCopy();
+    });
+  };
+
     function tickClock() {
-      clockEl.textContent = fmtClock(new Date());
+      if (clockEl) clockEl.textContent = fmtClock(new Date());
       updateTraffic();
+      tickRefreshAge();
     }
 
     function checkTcp() {

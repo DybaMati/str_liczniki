@@ -151,6 +151,7 @@
             }
             if (msg.ok && msg.data) {
                 var pr = loadData(msg.data);
+                if (window.panelMarkRefreshed) window.panelMarkRefreshed();
                 if (pr && pr.raw > pr.plotted) {
                     status.textContent = pr.raw + ' punktów (wykres: ' + pr.plotted + ', cały zakres dat)';
                 } else {

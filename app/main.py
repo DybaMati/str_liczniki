@@ -110,12 +110,8 @@ async def index(request: Request):
 
 
 @app.get("/start", response_class=HTMLResponse)
-async def page_start(request: Request):
-    return templates.TemplateResponse(
-        request,
-        "index.html",
-        {"request": request, "title": "Start", "active": "home"},
-    )
+async def page_start():
+    return RedirectResponse(url="/live", status_code=307)
 
 
 @app.get("/live", response_class=HTMLResponse)
