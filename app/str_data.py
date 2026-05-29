@@ -54,17 +54,18 @@ def _range_boundaries(date_from: str, date_to: str) -> Dict[str, str]:
 
 
 def _fetch_meter_watts_series(licznik_id: int) -> List[Dict[str, Any]]:
+    hours = max(1, min(int(get_settings().live_sparkline_hours), 168))
     rows = fetch_all(
         text(
             """
             SELECT `timestamp` AS ts, moc_w AS w
             FROM licznik_pomiary
             WHERE licznik_id = :lid
-              AND `timestamp` >= (NOW() - INTERVAL 8 HOUR)
+              AND `timestamp` >= (NOW() - INTERVAL :hours HOUR)
             ORDER BY `timestamp` ASC
             """
         ),
-        {"lid": licznik_id},
+        {"lid": licznik_id, "hours": hours},
     )
     out: List[Dict[str, Any]] = []
     for r in rows:
@@ -248,8 +249,10 @@ def fetch_live() -> Optional[Dict[str, Any]]:
     if pv_today_kwh is not None:
         balance_today = float(pv_today_kwh) - today_use_sum
 
+    spark_h = max(1, min(int(get_settings().live_sparkline_hours), 168))
     return {
         "ts": t_show,
+        "wat_series_hours": spark_h,
         "pv_ts": _fmt_ts(pv.get("ts")) if pv and pv.get("ts") else "",
         "l1_ts": _fmt_ts(m1.get("ts")) if m1 and m1.get("ts") else "",
         "l2_ts": _fmt_ts(m2.get("ts")) if m2 and m2.get("ts") else "",

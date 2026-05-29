@@ -31,6 +31,9 @@ class Settings(BaseSettings):
     licznik_lonia_id: int = 8
     licznik_henia_id: int = 9
 
+    # Mini-wykresy na /live: ile ostatnich godzin mocy z licznik_pomiary
+    live_sparkline_hours: int = 11
+
     # Tabela z mocami chwilowymi (jak w Node-RED: pv_w, l1_w, l2_w, l3_w)
     power_table: str = "power_readings"
     col_ts: str = "ts"

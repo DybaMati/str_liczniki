@@ -54,7 +54,6 @@
     }
     #nav-tcp { flex: 0 1 auto; }
     #nav-refresh { flex: 0 1 auto; }
-    #nav-traffic { flex: 0 1 auto; }
     .nav-clock {
       font-variant-numeric: tabular-nums;
       white-space: nowrap;
@@ -169,7 +168,6 @@
       #nav-tcp { justify-self: start; }
       #nav-refresh { justify-self: start; }
       #nav-clock { justify-self: end; grid-column: 3; }
-      #nav-traffic { display: none; }
       .nav-pill { font-size: 10px; padding: 4px 8px; gap: 4px; }
       .nav-pill-dot { width: 6px; height: 6px; }
       .nav-pill-data .nav-pill-val { font-size: 11px; }
@@ -196,10 +194,22 @@
       font-size: 13px;
       z-index: 10000;
       transition: opacity 0.2s ease, transform 0.2s ease;
+      max-width: min(92vw, 320px);
+      text-align: center;
+      white-space: nowrap;
+    }
+    .toast-copy.toast-near {
+      bottom: auto;
+      transform: translate(-50%, calc(-100% - 6px));
     }
     .toast-copy.show {
       opacity: 1;
+    }
+    .toast-copy.show:not(.toast-near) {
       transform: translateX(-50%) translateY(0);
+    }
+    .toast-copy.toast-near.show {
+      transform: translate(-50%, calc(-100% - 6px));
     }
     .copy-val { cursor: copy; -webkit-user-select: none; user-select: none; touch-action: manipulation; }
     .copy-val.copy-flash { outline: 1px solid rgba(59, 130, 246, 0.65); border-radius: 4px; }
@@ -232,10 +242,6 @@
         <span class="nav-pill-label">Dane</span>
         <span class="nav-pill-val" id="nav-refresh-val">—</span>
       </span>
-      <span class="nav-pill nav-pill-data nav-desktop-only" id="nav-traffic">
-        <span class="nav-pill-label">Ruch</span>
-        <span class="nav-pill-val" id="nav-traffic-val">0,00 MB</span>
-      </span>
       <div class="nav-clock" id="nav-clock">--</div>
     </div>
   </nav>
@@ -248,12 +254,10 @@
     var clockEl = document.getElementById('nav-clock');
     var tcpEl = document.getElementById('nav-tcp');
     var tcpText = document.getElementById('nav-tcp-text');
-    var trafficVal = document.getElementById('nav-traffic-val');
     var refreshVal = document.getElementById('nav-refresh-val');
     var toastCopy = document.getElementById('toast-copy');
     if (!tcpEl || !tcpText || !refreshVal || !clockEl) return;
 
-    var totalBytes = 0;
     var tcpOk = null;
     var tcpBusy = false;
     var lastDataRefreshAt = null;
@@ -269,24 +273,6 @@
       var mi = pad2(d.getMinutes());
       var ss = pad2(d.getSeconds());
       return dd + '-' + mm + '-' + yy + ' ' + hh + ':' + mi + ':' + ss;
-    }
-
-    function fmtTraffic(bytes) {
-      if (!bytes || bytes < 0) bytes = 0;
-      var gb = bytes / (1024 * 1024 * 1024);
-      if (gb >= 1) {
-        return gb.toFixed(3).replace('.', ',') + ' GB';
-      }
-      var mb = bytes / (1024 * 1024);
-      return mb.toFixed(2).replace('.', ',') + ' MB';
-    }
-
-    function addBytes(n) {
-      if (n > 0 && isFinite(n)) totalBytes += n;
-    }
-
-    function updateTraffic() {
-      if (trafficVal) trafficVal.textContent = fmtTraffic(totalBytes);
     }
 
     function setTcp(ok, checking) {
@@ -321,34 +307,83 @@
       tickRefreshAge();
     };
 
-    function showToast(msg) {
+    function resetToastPos() {
+      if (!toastCopy) return;
+      toastCopy.classList.remove('show', 'toast-near');
+      toastCopy.style.left = '';
+      toastCopy.style.top = '';
+      toastCopy.style.bottom = '';
+    }
+
+    function showToastNear(anchor, msg) {
       if (!toastCopy) return;
       toastCopy.textContent = msg;
+      if (anchor && anchor.getBoundingClientRect) {
+        var r = anchor.getBoundingClientRect();
+        var x = r.left + r.width / 2;
+        var y = r.top;
+        var pad = 10;
+        x = Math.min(window.innerWidth - pad, Math.max(pad, x));
+        y = Math.min(window.innerHeight - pad, Math.max(pad + 48, y));
+        toastCopy.style.left = x + 'px';
+        toastCopy.style.top = y + 'px';
+        toastCopy.style.bottom = 'auto';
+        toastCopy.classList.add('toast-near');
+      } else {
+        toastCopy.style.left = '';
+        toastCopy.style.top = '';
+        toastCopy.style.bottom = '';
+        toastCopy.classList.remove('toast-near');
+      }
       toastCopy.classList.add('show');
       if (toastTimer) clearTimeout(toastTimer);
-      toastTimer = setTimeout(function () { toastCopy.classList.remove('show'); }, 1600);
+      toastTimer = setTimeout(resetToastPos, 1600);
+    }
+
+    function isCoarsePointer() {
+      try {
+        return window.matchMedia('(pointer: coarse)').matches;
+      } catch (e) {
+        return 'ontouchstart' in window;
+      }
+    }
+
+    function execCopySync(text) {
+      try {
+        var ta = document.createElement('textarea');
+        ta.value = text;
+        ta.setAttribute('readonly', '');
+        ta.style.position = 'fixed';
+        ta.style.top = '0';
+        ta.style.left = '0';
+        ta.style.width = '2em';
+        ta.style.height = '2em';
+        ta.style.opacity = '0';
+        ta.style.pointerEvents = 'none';
+        document.body.appendChild(ta);
+        ta.focus();
+        ta.select();
+        ta.setSelectionRange(0, text.length);
+        var ok = document.execCommand('copy');
+        document.body.removeChild(ta);
+        return ok;
+      } catch (e) {
+        return false;
+      }
     }
 
     function copyPlainText(text) {
       text = (text == null) ? '' : String(text).trim();
       if (!text) return Promise.reject();
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        return navigator.clipboard.writeText(text);
+      if (isCoarsePointer()) {
+        return execCopySync(text) ? Promise.resolve() : Promise.reject();
       }
-      return new Promise(function (resolve, reject) {
-        try {
-          var ta = document.createElement('textarea');
-          ta.value = text;
-          ta.setAttribute('readonly', '');
-          ta.style.position = 'fixed';
-          ta.style.left = '-9999px';
-          document.body.appendChild(ta);
-          ta.select();
-          var ok = document.execCommand('copy');
-          document.body.removeChild(ta);
-          ok ? resolve() : reject();
-        } catch (e) { reject(e); }
-      });
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        return navigator.clipboard.writeText(text).catch(function () {
+          return execCopySync(text) ? Promise.resolve() : Promise.reject();
+        });
+      }
+      return execCopySync(text) ? Promise.resolve() : Promise.reject();
     }
 
   window.panelCopyOnLongPress = function (el) {
@@ -356,35 +391,66 @@
     el.__copyBound = true;
     el.classList.add('copy-val');
     var pressTimer = null;
+    var lastTapAt = 0;
+    var copyLock = false;
+    var DOUBLE_TAP_MS = 380;
+
     function clearPress() {
       if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; }
     }
     function meterLabelFor(el) {
       var card = el.closest('.meter-card');
-      return card ? (card.getAttribute('data-meter-label') || '').trim() : '';
+      if (card) return (card.getAttribute('data-meter-label') || '').trim();
+      var pv = el.closest('.pv-card');
+      if (pv) {
+        var lbl = pv.querySelector('.pv-card-label');
+        return lbl ? (lbl.textContent || '').trim() : '';
+      }
+      return '';
+    }
+    function toastMsg(name) {
+      if (name) return 'Skopiowano: ' + name;
+      return 'Skopiowano';
     }
     function doCopy() {
+      if (copyLock) return;
+      copyLock = true;
+      setTimeout(function () { copyLock = false; }, 450);
       var raw = el.getAttribute('data-copy');
       if (raw == null) raw = (el.textContent || '').trim();
       var name = meterLabelFor(el);
       copyPlainText(raw).then(function () {
         el.classList.add('copy-flash');
         setTimeout(function () { el.classList.remove('copy-flash'); }, 400);
-        showToast(name ? ('Skopiowano licznik: ' + name) : 'Skopiowano');
-      }).catch(function () {});
+        showToastNear(el, toastMsg(name));
+      }).catch(function () {
+        showToastNear(el, 'Nie udało się skopiować');
+      });
     }
-    el.setAttribute('title', 'Przytrzymaj lub kliknij 2×, aby skopiować');
-    el.addEventListener('touchstart', function (e) {
+    function onPointerCopy(e) {
+      if (e) { e.preventDefault(); e.stopPropagation(); }
+      doCopy();
+    }
+    el.setAttribute('title', 'Kliknij 2× (telefon / mysz), aby skopiować');
+    el.addEventListener('touchstart', function () {
       clearPress();
-      pressTimer = setTimeout(function () { doCopy(); }, 550);
+      if (isCoarsePointer()) {
+        pressTimer = setTimeout(function () { doCopy(); }, 700);
+      }
     }, { passive: true });
-    el.addEventListener('touchend', clearPress, { passive: true });
+    el.addEventListener('touchend', function (e) {
+      clearPress();
+      var now = Date.now();
+      if (now - lastTapAt < DOUBLE_TAP_MS) {
+        lastTapAt = 0;
+        onPointerCopy(e);
+      } else {
+        lastTapAt = now;
+      }
+    }, { passive: false });
     el.addEventListener('touchmove', clearPress, { passive: true });
     el.addEventListener('touchcancel', clearPress, { passive: true });
-    el.addEventListener('dblclick', function (e) {
-      e.preventDefault();
-      doCopy();
-    });
+    el.addEventListener('dblclick', onPointerCopy);
     el.addEventListener('contextmenu', function (e) {
       e.preventDefault();
       doCopy();
@@ -393,7 +459,6 @@
 
     function tickClock() {
       if (clockEl) clockEl.textContent = fmtClock(new Date());
-      updateTraffic();
       tickRefreshAge();
     }
 
@@ -419,39 +484,6 @@
         })
         .finally(function () { tcpBusy = false; });
     }
-
-    var origFetch = window.fetch.bind(window);
-    window.fetch = function (input, init) {
-      init = init || {};
-      var url = typeof input === 'string' ? input : (input && input.url) || '';
-      var sameOrigin = url.charAt(0) === '/' || url.indexOf(window.location.origin) === 0;
-
-      if (sameOrigin && init.body) {
-        try {
-          if (typeof init.body === 'string') {
-            addBytes(new Blob([init.body]).size);
-          } else if (init.body instanceof Blob) {
-            addBytes(init.body.size);
-          }
-        } catch (e) { /* ignore */ }
-      }
-
-      return origFetch(input, init).then(function (res) {
-        if (!sameOrigin) return res;
-        var cl = res.headers.get('content-length');
-        if (cl) {
-          addBytes(parseInt(cl, 10) || 0);
-          updateTraffic();
-          return res;
-        }
-        if (!/\/api\//.test(url)) return res;
-        return res.clone().arrayBuffer().then(function (buf) {
-          addBytes(buf.byteLength);
-          updateTraffic();
-          return res;
-        });
-      });
-    };
 
     tickClock();
     setInterval(tickClock, 1000);

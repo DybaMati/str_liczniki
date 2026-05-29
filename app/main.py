@@ -263,6 +263,7 @@ async def api_live():
         "l2_w": float(row.get("l2_w") or 0),
         "l3_w": float(row.get("l3_w") or 0),
         "meter_cards": row.get("meter_cards") or [],
+        "wat_series_hours": int(row.get("wat_series_hours") or 11),
         "wat_y_max": float(row.get("wat_y_max") or 500),
         "pv_kwh_total": row.get("pv_kwh_total"),
         "pv_kwh_ts": row.get("pv_kwh_ts") or "",

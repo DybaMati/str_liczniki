@@ -7,13 +7,20 @@ main { max-width: min(100%, 1600px); }
 {% endblock %}
 {% block content %}
 <style>
-.pv-top{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;margin-bottom:12px}
-.pv-card{background:rgba(255,255,255,0.08);border-radius:8px;padding:10px 12px}
-.pv-card-head{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:6px}
-.pv-card-label{font-size:12px;color:#aaa;margin:0}
-.pv-card-upd{font-size:11px;color:#8d8d8d;text-align:right;line-height:1.25}
-.pv-card-upd .d{display:block}
-.pv-card-upd .t{display:block}
+.pv-top{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px}
+@media (max-width:720px){.pv-top{grid-template-columns:1fr}}
+.pv-card{background:rgba(255,255,255,0.08);border-radius:10px;padding:12px 14px;display:flex;flex-direction:column;min-height:100%}
+.pv-card-head{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;width:100%;margin-bottom:4px}
+.pv-card-label{font-size:12px;color:#aaa;margin:0;flex:1 1 auto;min-width:0}
+.pv-card-upd{flex:0 0 auto;margin-left:auto;font-size:10px;color:#8d8d8d;text-align:right;line-height:1.25;max-width:52%}
+.pv-card-upd .d{display:block;font-size:11px;color:#a3a3a3}
+.pv-card-upd .t{display:block;font-variant-numeric:tabular-nums}
+.pv-hero-w{font-size:clamp(2rem,7vw,3.25rem);font-weight:700;line-height:1.05;margin:6px 0 0;font-variant-numeric:tabular-nums;color:#f8fafc}
+.pv-hero-w.pv-higher{color:#6ee7b7}
+.pv-day-stat{margin-top:14px;padding-top:12px;border-top:1px solid rgba(255,255,255,0.08)}
+.pv-day-lbl{display:block;font-size:12px;color:#9ca3af;margin-bottom:4px}
+.pv-hero-kwh{display:block;font-size:clamp(1.35rem,4.8vw,2.1rem);font-weight:700;font-variant-numeric:tabular-nums;color:#e5e7eb;line-height:1.15}
+.pv-hero-kwh.pv-higher{color:#93c5fd}
 .pv-card-value{font-size:22px;font-weight:600;margin:0}
 .pv-meta{color:#888;font-size:13px;margin:0;min-height:0}
 .pv-meta:empty{display:none}
@@ -77,20 +84,22 @@ main { max-width: min(100%, 1600px); }
       <p class="pv-card-label">PV produkcja</p>
       <div class="pv-card-upd" id="pv-pv-upd-wrap">ostatni pomiar PV<span class="d" id="pv-pv-d">-</span><span class="t" id="pv-pv-t">-</span></div>
     </div>
-    <p class="pv-card-value" id="pv-pv">-</p>
-    <p style="font-size:13px;color:#bbb;margin:10px 0 0;line-height:1.45">
-      Produkcja dzisiaj: <strong id="pv-kwh-today" style="font-weight:600;color:#e5e5e5">-</strong><br/>
-      Wyprodukowano (całkowita produkcja): <strong id="pv-kwh-plain" style="font-weight:600;color:#e5e5e5">-</strong><br/>
-      <span style="font-size:11px;color:#666" id="pv-kwh-ts-line"></span>
-    </p>
+    <p class="pv-hero-w" id="pv-pv">-</p>
+    <div class="pv-day-stat">
+      <span class="pv-day-lbl">Łączna produkcja dzisiaj</span>
+      <span class="pv-hero-kwh" id="pv-kwh-today">-</span>
+    </div>
   </div>
   <div class="pv-card">
-    <p class="pv-card-label">Suma zuzycia (L1+L2+L3)</p>
-    <p class="pv-card-value" id="pv-sum">-</p>
-    <p style="font-size:12px;color:#bbb;margin:8px 0 0;line-height:1.4">
-      Zuzyto dzisiaj: <strong id="pv-use-today" style="font-weight:600;color:#e5e5e5">-</strong>
-    </p>
-    <p style="font-size:11px;color:#666;margin:6px 0 0">Najnowszy czas w systemie: <span id="pv-time">-</span></p>
+    <div class="pv-card-head">
+      <p class="pv-card-label">Suma zużycia (L1+L2+L3)</p>
+      <div class="pv-card-upd" id="pv-sum-upd-wrap">ostatni pomiar<span class="d" id="pv-sum-d">-</span><span class="t" id="pv-sum-t">-</span></div>
+    </div>
+    <p class="pv-hero-w" id="pv-sum">-</p>
+    <div class="pv-day-stat">
+      <span class="pv-day-lbl">Suma zużycia kWh dzisiaj</span>
+      <span class="pv-hero-kwh" id="pv-use-today">-</span>
+    </div>
   </div>
 </div>
 
@@ -124,12 +133,10 @@ main { max-width: min(100%, 1600px); }
   </article>
 </div>
 
-<section class="live-balance" id="live-balance" aria-label="Porownanie dzis">
-  <h3 class="live-balance-title">Porownanie — dziś (<span id="today-label">-</span>)</h3>
+<section class="live-balance" id="live-balance" aria-label="Bilans dzis">
+  <h3 class="live-balance-title">Bilans — dziś (<span id="today-label">-</span>)</h3>
   <div class="live-balance-rows">
-    <div class="live-balance-row"><span>Zuzyte lacznie (L1+L2+L3)</span><span class="val" id="bal-use">-</span></div>
-    <div class="live-balance-row"><span>Wyprodukowano PV</span><span class="val" id="bal-pv">-</span></div>
-    <div class="live-balance-row"><span>Bilans (produkcja − zuzycie)</span><span class="val" id="bal-net">-</span></div>
+    <div class="live-balance-row"><span>Produkcja − zużycie</span><span class="val" id="bal-net">-</span></div>
   </div>
 </section>
 
@@ -199,6 +206,21 @@ let _chartRefs = [];
 let _nextTickTimer = null;
 let _retryCountdownTimer = null;
 let _metersInitialized = false;
+let _sparklineHours = 11;
+const MAX_SPARK_POINTS = 1200;
+
+function pickSparkPoints(arr, maxLen) {
+  if (!arr || !arr.length) return [];
+  if (arr.length <= maxLen) return arr.slice();
+  var n = arr.length;
+  var idxSet = {};
+  for (var k = 0; k < maxLen; k++) {
+    var idx = Math.round(k * (n - 1) / (maxLen - 1));
+    idxSet[idx] = true;
+  }
+  return Object.keys(idxSet).map(function (x) { return parseInt(x, 10); }).sort(function (a, b) { return a - b; })
+    .map(function (i) { return arr[i]; });
+}
 function disposeCharts(){
   _chartRefs.forEach(function(c){ try{c.dispose();}catch(e){} });
   _chartRefs = [];
@@ -216,7 +238,7 @@ function ensureEcharts(){
 function drawSparkline(container, series, yMax){
   if(!container || !window.echarts) return;
   var chart = echarts.getInstanceByDom(container) || echarts.init(container);
-  var src = series || [];
+  var src = pickSparkPoints(series || [], MAX_SPARK_POINTS);
   const GAP_MS = 10 * 60 * 1000;
 
   var dataPairs = [];
@@ -338,7 +360,7 @@ function createMeterCard(c, idx, yMax) {
     '<div class="meter-rows">'+
     '  <div class="meter-row"><b>Voltage</b><span data-f="voltage"></span></div>'+
     '  <div class="meter-row"><b>Wat</b><span data-f="wat"></span></div>'+
-    '  <div class="spark-wrap"><b>Wat wykres</b><div class="spark" id="'+id+'"></div></div>'+
+    '  <div class="spark-wrap"><b class="spark-lbl">Wat wykres (ostatnie '+_sparklineHours+' h)</b><div class="spark" id="'+id+'"></div></div>'+
     '  <div class="meter-row"><b>Amper</b><span data-f="amp"></span></div>'+
     '  <div class="meter-row"><b>Zuzycie licznik</b><span data-f="kwh"></span></div>'+
     '  <div class="meter-row"><b>Zuzyto dzisiaj</b><span data-f="kwh-today"></span></div>'+
@@ -485,24 +507,34 @@ async function tick(){
     clearRetryCountdown();
     if(loadingEl) { loadingEl.classList.add('is-done'); loadingEl.style.display='none'; }
     if(st) st.textContent='';
+    if (j.wat_series_hours != null) {
+      _sparklineHours = parseInt(j.wat_series_hours, 10) || 11;
+      document.querySelectorAll('.spark-lbl').forEach(function (el) {
+        el.textContent = 'Wat wykres (ostatnie ' + _sparklineHours + ' h)';
+      });
+    }
     if (window.panelMarkRefreshed) window.panelMarkRefreshed();
-    document.getElementById('pv-time').textContent=fmtTs(j.time);
-    document.getElementById('pv-pv').textContent=fmtW(j.pv_w);
+    var pvEl=document.getElementById('pv-pv');
+    var sumEl=document.getElementById('pv-sum');
+    var pvW=Number(j.pv_w);
+    var sumW=(j.l1_w||0)+(j.l2_w||0)+(j.l3_w||0);
+    if(pvEl) pvEl.textContent=fmtW(pvW);
+    if(sumEl) sumEl.textContent=fmtW(sumW);
+    markCompareHigher(pvEl, sumEl, pvW, sumW);
     var pvDt=splitDateTime(j.pv_ts);
     document.getElementById('pv-pv-d').textContent=pvDt.d;
     document.getElementById('pv-pv-t').textContent=pvDt.t;
-    const sum=(j.l1_w||0)+(j.l2_w||0)+(j.l3_w||0);
-    document.getElementById('pv-sum').textContent=fmtW(sum);
+    var sumDt=newestTsSplit(j.l1_ts, j.l2_ts, j.l3_ts, j.time);
+    document.getElementById('pv-sum-d').textContent=sumDt.d;
+    document.getElementById('pv-sum-t').textContent=sumDt.t;
     var useTodayEl=document.getElementById('pv-use-today');
-    if(useTodayEl) useTodayEl.textContent=fmtKwhDelta(j.kwh_use_today);
-    var pvKwhEl=document.getElementById('pv-kwh-plain');
-    if(pvKwhEl) pvKwhEl.textContent=(j.pv_kwh_total!=null && !Number.isNaN(j.pv_kwh_total)) ? fmtKwhPlain(j.pv_kwh_total) : '—';
     var pvTodayEl=document.getElementById('pv-kwh-today');
-    if(pvTodayEl) pvTodayEl.textContent=fmtKwhDelta(j.kwh_pv_today);
-    document.getElementById('pv-kwh-ts-line').textContent=j.pv_kwh_ts ? ('Ostatni odczyt licznika kWh: '+j.pv_kwh_ts) : '';
+    var useK=j.kwh_use_today;
+    var pvK=j.kwh_pv_today;
+    if(useTodayEl) useTodayEl.textContent=fmtKwhDelta(useK);
+    if(pvTodayEl) pvTodayEl.textContent=fmtKwhDelta(pvK);
+    markCompareHigher(pvTodayEl, useTodayEl, pvK, useK);
     document.getElementById('today-label').textContent=j.today_period_label||'-';
-    document.getElementById('bal-use').textContent=fmtKwhDelta(j.kwh_use_today);
-    document.getElementById('bal-pv').textContent=fmtKwhDelta(j.kwh_pv_today);
     var netEl=document.getElementById('bal-net');
     var net=j.kwh_balance_today;
     netEl.textContent=fmtKwhDelta(net);
