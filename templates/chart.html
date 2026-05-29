@@ -15,19 +15,20 @@
 .pv-chart-box{width:100%;min-height:260px;height:min(420px,58vh);box-sizing:border-box}
 .chart-overlay{
   position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
-  gap:12px;padding:20px;text-align:center;background:rgba(18,18,18,0.92);border-radius:6px;z-index:5;
+  gap:14px;padding:22px 18px;text-align:center;background:rgba(12,12,12,0.96);border-radius:6px;z-index:5;
+  border:1px solid #404040;
 }
 .chart-overlay.is-hidden{display:none}
-.chart-overlay-msg{margin:0;color:#c4c4c4;font-size:14px;line-height:1.45;max-width:28rem}
-.chart-overlay-detail{margin:0;color:#9ca3af;font-size:12px;line-height:1.4}
-.chart-progress{width:min(320px,90%);display:none;flex-direction:column;gap:6px;align-items:stretch}
+.chart-overlay-msg{margin:0;color:#f8fafc;font-size:clamp(17px,4.2vw,20px);font-weight:650;line-height:1.35;max-width:32rem}
+.chart-overlay-detail{margin:0;color:#e5e7eb;font-size:clamp(14px,3.5vw,16px);line-height:1.45;max-width:32rem}
+.chart-progress{width:min(360px,92%);display:none;flex-direction:column;gap:8px;align-items:stretch}
 .chart-progress.show{display:flex}
-.chart-progress-track{height:8px;background:#2a2a2a;border-radius:999px;overflow:hidden;border:1px solid #404040}
-.chart-progress-fill{height:100%;width:0%;background:linear-gradient(90deg,#2563eb,#3b82f6);transition:width 0.15s ease}
-.chart-progress-pct{margin:0;font-size:12px;color:#93c5fd;font-variant-numeric:tabular-nums}
+.chart-progress-track{height:12px;background:#1f1f1f;border-radius:999px;overflow:hidden;border:1px solid #525252}
+.chart-progress-fill{height:100%;width:0%;background:linear-gradient(90deg,#1d4ed8,#3b82f6,#60a5fa);transition:width 0.25s ease}
+.chart-progress-pct{margin:0;font-size:15px;font-weight:700;color:#bfdbfe;font-variant-numeric:tabular-nums}
 .chart-btn-cancel{
-  display:none;margin-top:4px;padding:8px 16px;border-radius:8px;border:1px solid #555;
-  background:rgba(255,255,255,0.06);color:#e5e5e5;font-size:13px;font-weight:600;cursor:pointer;min-height:40px;
+  display:none;margin-top:2px;padding:10px 18px;border-radius:8px;border:1px solid #6b7280;
+  background:rgba(255,255,255,0.08);color:#fafafa;font-size:15px;font-weight:650;cursor:pointer;min-height:44px;
 }
 .chart-btn-cancel.show{display:inline-block}
 .chart-btn-cancel:hover{background:rgba(248,113,113,0.15);border-color:#f87171;color:#fecaca}
@@ -159,6 +160,7 @@
     let progressTimer = null;
     let activeAbort = null;
     let countdownTimer = null;
+    let loadPctCurrent = 0;
 
     const overlayEl = () => document.getElementById('chart-overlay');
     const overlayMsg = () => document.getElementById('chart-overlay-msg');
@@ -181,12 +183,51 @@
 
     function setProgress(pct, showBar) {
         var p = Math.max(0, Math.min(100, pct));
+        loadPctCurrent = p;
         var fill = progressFill();
         var box = progressBox();
         var lbl = progressPct();
         if (fill) fill.style.width = p + '%';
         if (lbl) lbl.textContent = p + '%';
         if (box) box.classList.toggle('show', !!showBar);
+    }
+
+    function bumpProgress(minPct) {
+        if (minPct > loadPctCurrent) setProgress(minPct, true);
+    }
+
+    async function fetchHistoryJson(from, to, signal, onByteProgress) {
+        var url = '/api/history?from=' + encodeURIComponent(from) + '&to=' + encodeURIComponent(to);
+        var r = await fetch(url, { signal: signal });
+        if (!r.ok) {
+            var errBody = null;
+            try { errBody = await r.json(); } catch (e) { errBody = null; }
+            return { ok: false, status: r.status, body: errBody };
+        }
+        var cl = parseInt(r.headers.get('content-length') || '0', 10);
+        if (!r.body || !cl || cl < 1) {
+            var jsonSimple = await r.json();
+            if (onByteProgress) onByteProgress(1);
+            return { ok: true, json: jsonSimple };
+        }
+        var reader = r.body.getReader();
+        var parts = [];
+        var got = 0;
+        while (true) {
+            var chunk = await reader.read();
+            if (chunk.done) break;
+            parts.push(chunk.value);
+            got += chunk.value.length;
+            if (onByteProgress) onByteProgress(Math.min(1, got / cl));
+        }
+        var merged = new Uint8Array(got);
+        var off = 0;
+        for (var i = 0; i < parts.length; i++) {
+            merged.set(parts[i], off);
+            off += parts[i].length;
+        }
+        var text = new TextDecoder('utf-8').decode(merged);
+        return { ok: true, json: JSON.parse(text) };
     }
 
     function showOverlayUi(opts) {
@@ -284,7 +325,7 @@
         debounceTimer = setTimeout(function () {
             debounceTimer = null;
             if (myGen !== loadGen) return;
-            runLoad(from, to, myGen);
+            runLoadWrapped(from, to, myGen);
         }, LOAD_DELAY_MS);
     }
 
@@ -293,93 +334,136 @@
         clearLoadTimers();
         if (myGen !== loadGen) return;
 
-        var estSec = 5;
+        loadPctCurrent = 0;
         var estimateDetail = '';
         showOverlayUi({
             msg: 'Ładowanie danych…',
-            detail: '',
+            detail: 'Sprawdzam rozmiar zakresu…',
             showBar: true,
             showCancel: true,
-            pct: 3
+            pct: 5
         });
 
         activeAbort = new AbortController();
-        var estPromise = fetch('/api/history/estimate?from=' + encodeURIComponent(from) + '&to=' + encodeURIComponent(to))
-            .then(function (r) { return r.json(); })
-            .then(function (estJ) {
-                if (myGen !== loadGen || !estJ || !estJ.ok) return;
-                estSec = estJ.estimated_seconds || 5;
-                var plotted = estJ.plotted_estimate || 0;
-                estimateDetail = 'PV: ' + (estJ.pv_rows || 0) + ' odcz. · liczniki: ' + (estJ.meter_rows || 0)
-                    + ' · wykres ~' + plotted + ' pkt · ~' + estSec + ' s';
-            })
-            .catch(function () {});
-
-        var t0 = Date.now();
-        progressTimer = setInterval(function () {
-            if (myGen !== loadGen) return;
-            var elapsed = (Date.now() - t0) / 1000;
-            var pct = Math.min(95, Math.round(5 + (elapsed / estSec) * 90));
-            setProgress(pct, true);
-            var left = Math.max(0, estSec - elapsed);
-            var line = estimateDetail
-                ? (estimateDetail + ' · ~' + Math.ceil(left) + ' s')
-                : ('Trwa pobieranie… ~' + Math.ceil(left) + ' s');
-            if (overlayDetail()) overlayDetail().textContent = line;
-        }, 200);
-
         try {
-            const r = await fetch('/api/history?from=' + encodeURIComponent(from) + '&to=' + encodeURIComponent(to), {
+            var estR = await fetch('/api/history/estimate?from=' + encodeURIComponent(from) + '&to=' + encodeURIComponent(to), {
                 signal: activeAbort.signal
             });
-            await estPromise;
-            const msg = await r.json();
-            clearLoadTimers();
-            activeAbort = null;
+            var estJ = await estR.json();
             if (myGen !== loadGen) return;
-
-            if (!r.ok) {
-                var d = msg.detail;
-                var errTxt = typeof d === 'string' ? d : (Array.isArray(d) && d[0] && d[0].msg ? d[0].msg : 'Błąd zapytania');
-                if (status) status.textContent = errTxt;
-                showOverlayUi({ msg: errTxt, detail: '', showBar: false, showCancel: false, pct: 0 });
-                return;
-            }
-            setProgress(98, true);
-            if (msg.ok && msg.data && msg.data.length) {
-                var pr = loadData(msg.data);
-                if (window.panelMarkRefreshed) window.panelMarkRefreshed();
-                setProgress(100, true);
-                hideOverlay();
-                if (status) {
-                    if (pr && pr.raw > pr.plotted) {
-                        status.textContent = pr.raw + ' punktów (wykres: ' + pr.plotted + ')';
-                    } else {
-                        status.textContent = (pr ? pr.raw : msg.data.length) + ' punktów';
-                    }
-                }
+            if (estR.ok && estJ && estJ.ok) {
+                var plotted = estJ.plotted_estimate || 0;
+                estimateDetail = 'Do pobrania: ' + (estJ.raw_rows || 0) + ' odczytów · na wykres ~' + plotted + ' punktów';
+                bumpProgress(12);
             } else {
-                clearChartData();
-                if (status) status.textContent = 'Brak danych w zakresie';
-                showOverlayUi({
-                    msg: 'Brak danych w wybranym zakresie.',
-                    detail: '',
-                    showBar: false,
-                    showCancel: false,
-                    pct: 0
-                });
+                estimateDetail = 'Pobieram dane z serwera…';
             }
+        } catch (e) {
+            if (myGen !== loadGen) return;
+            if (e && e.name === 'AbortError') throw e;
+            estimateDetail = 'Pobieram dane z serwera…';
+        }
+
+        if (myGen !== loadGen) return;
+        if (overlayDetail()) overlayDetail().textContent = estimateDetail;
+        if (overlayMsg()) overlayMsg().textContent = 'Pobieranie z serwera…';
+        bumpProgress(15);
+
+        var fetchDone = false;
+        progressTimer = setInterval(function () {
+            if (myGen !== loadGen || fetchDone) return;
+            bumpProgress(Math.min(loadPctCurrent + 1, 18));
+        }, 400);
+
+        var result;
+        try {
+            result = await fetchHistoryJson(from, to, activeAbort.signal, function (frac) {
+                if (myGen !== loadGen) return;
+                var pct = 15 + Math.round(frac * 55);
+                bumpProgress(pct);
+                if (overlayDetail()) {
+                    overlayDetail().textContent = estimateDetail + ' · pobrano ' + Math.round(frac * 100) + '% pliku';
+                }
+            });
+        } finally {
+            fetchDone = true;
+            clearLoadTimers();
+        }
+
+        if (myGen !== loadGen) return;
+        activeAbort = null;
+
+        if (!result.ok) {
+            var msg = result.body || {};
+            var d = msg.detail;
+            var errTxt = typeof d === 'string' ? d : (Array.isArray(d) && d[0] && d[0].msg ? d[0].msg : 'Błąd zapytania');
+            if (status) status.textContent = errTxt;
+            showOverlayUi({ msg: errTxt, detail: '', showBar: false, showCancel: false, pct: 0 });
+            return;
+        }
+
+        bumpProgress(72);
+        if (overlayMsg()) overlayMsg().textContent = 'Przetwarzanie danych…';
+        if (overlayDetail()) overlayDetail().textContent = 'Przygotowuję wykres…';
+
+        const msg = result.json;
+        bumpProgress(82);
+
+        if (msg.ok && msg.data && msg.data.length) {
+            bumpProgress(88);
+            var pr = loadData(msg.data);
+            if (window.panelMarkRefreshed) window.panelMarkRefreshed();
+            bumpProgress(100);
+            if (overlayMsg()) overlayMsg().textContent = 'Gotowe';
+            if (overlayDetail()) {
+                overlayDetail().textContent = (pr && pr.raw > pr.plotted)
+                    ? ('Załadowano ' + pr.raw + ' punktów (na wykresie ' + pr.plotted + ')')
+                    : ('Załadowano ' + (pr ? pr.raw : msg.data.length) + ' punktów');
+            }
+            await new Promise(function (resolve) { setTimeout(resolve, 350); });
+            if (myGen !== loadGen) return;
+            hideOverlay();
+            if (status) {
+                if (pr && pr.raw > pr.plotted) {
+                    status.textContent = pr.raw + ' punktów (wykres: ' + pr.plotted + ')';
+                } else {
+                    status.textContent = (pr ? pr.raw : msg.data.length) + ' punktów';
+                }
+            }
+        } else {
+            clearChartData();
+            if (status) status.textContent = 'Brak danych w zakresie';
+            showOverlayUi({
+                msg: 'Brak danych w wybranym zakresie.',
+                detail: 'Zmień daty i kliknij Wyślij ponownie.',
+                showBar: false,
+                showCancel: false,
+                pct: 0
+            });
+        }
+    }
+
+    async function runLoadWrapped(from, to, myGen) {
+        try {
+            await runLoad(from, to, myGen);
         } catch (e) {
             clearLoadTimers();
             activeAbort = null;
             if (myGen !== loadGen) return;
+            var st = document.getElementById('pv-chart-status');
             if (e && e.name === 'AbortError') {
                 setOverlayIdle();
-                if (status) status.textContent = 'Anulowano.';
+                if (st) st.textContent = 'Anulowano.';
                 return;
             }
-            if (status) status.textContent = 'Błąd: ' + e;
-            showOverlayUi({ msg: 'Błąd połączenia z serwerem.', detail: String(e), showBar: false, showCancel: false, pct: 0 });
+            if (st) st.textContent = 'Błąd: ' + e;
+            showOverlayUi({
+                msg: 'Błąd połączenia z serwerem.',
+                detail: String(e),
+                showBar: false,
+                showCancel: false,
+                pct: 0
+            });
         }
     }
 
