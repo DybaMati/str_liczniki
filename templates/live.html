@@ -21,9 +21,9 @@ main { max-width: min(100%, 1600px); }
 .pv-day-lbl{display:block;font-size:12px;color:#9ca3af;margin-bottom:4px}
 .pv-hero-kwh{display:block;font-size:clamp(1.35rem,4.8vw,2.1rem);font-weight:700;font-variant-numeric:tabular-nums;color:#e5e7eb;line-height:1.15}
 .pv-hero-kwh.pv-higher{color:#93c5fd}
-.pv-total-stat{margin-top:12px;padding-top:10px;border-top:1px solid rgba(255,255,255,0.08)}
-.pv-total-kwh{display:block;font-size:clamp(1.1rem,3.2vw,1.5rem);font-weight:600;font-variant-numeric:tabular-nums;color:#d4d4d4;margin-top:4px}
-.pv-total-ts{display:block;font-size:11px;color:#666;margin-top:6px;line-height:1.35}
+.pv-card-info{font-size:12px;color:#888;margin:10px 0 0;line-height:1.45}
+.pv-card-info strong{font-weight:600;color:#a3a3a3}
+.pv-card-info .pv-card-info-ts{display:block;font-size:11px;color:#666;margin-top:4px}
 .kwh-odo .sep-group{display:inline-block;width:0.35em;color:#6b7280}
 .pv-card-value{font-size:22px;font-weight:600;margin:0}
 .pv-meta{color:#888;font-size:13px;margin:0;min-height:0}
@@ -97,11 +97,10 @@ main { max-width: min(100%, 1600px); }
       <span class="pv-day-lbl">Łączna produkcja dzisiaj</span>
       <span class="pv-hero-kwh" id="pv-kwh-today">-</span>
     </div>
-    <div class="pv-total-stat">
-      <span class="pv-day-lbl">Wyprodukowano od początku</span>
-      <span class="pv-total-kwh" id="pv-kwh-plain">-</span>
-      <span class="pv-total-ts" id="pv-kwh-ts-line"></span>
-    </div>
+    <p class="pv-card-info">
+      Wyprodukowano (całkowita produkcja): <strong id="pv-kwh-plain">-</strong>
+      <span class="pv-card-info-ts" id="pv-kwh-ts-line"></span>
+    </p>
   </div>
   <div class="pv-card">
     <div class="pv-card-head">
@@ -177,7 +176,10 @@ function fmtKOdo(n){
   var left=leftRaw.length < 5 ? leftRaw.padStart(5,'0') : leftRaw;
   var right=(parts[1]||'00');
   var h='<span class="kwh-odo">';
-  for(var i=0;i<left.length;i++){ h += '<span class="cell">'+left.charAt(i)+'</span>'; }
+  for(var i=0;i<left.length;i++){
+    if(i>0 && (left.length-i)%3===0) h += '<span class="sep sep-group" aria-hidden="true"> </span>';
+    h += '<span class="cell">'+left.charAt(i)+'</span>';
+  }
   h += '<span class="sep">,</span>';
   h += '<span class="cell dec">'+right.charAt(0)+'</span>';
   h += '<span class="cell dec">'+right.charAt(1)+'</span>';
@@ -197,14 +199,29 @@ function fmtTsShort(s){
   var m=String(s).match(/(\d{2}:\d{2}:\d{2})$/);
   return m ? m[1] : s;
 }
+/** Np. 1000000 -> "1 000 000,00" */
+function fmtPlGrouped(n, dec){
+  if(n==null||Number.isNaN(n)) return null;
+  dec=(dec==null)?2:dec;
+  var neg=n<0;
+  n=Math.abs(n);
+  var parts=(Math.round(n*Math.pow(10,dec))/Math.pow(10,dec)).toFixed(dec).split('.');
+  var intPart=parts[0];
+  var frac=parts[1]||'';
+  var grouped=intPart.replace(/\B(?=(\d{3})+(?!\d))/g,' ');
+  var s=grouped+(dec>0?(','+frac):'');
+  return neg?('-'+s):s;
+}
 function fmtKwhDelta(n){
-  if(n==null||Number.isNaN(n)) return '-';
-  return (Math.round(n*100)/100).toFixed(2).replace('.',',')+' kWh';
+  var s=fmtPlGrouped(n,2);
+  if(s==null) return '-';
+  return s+' kWh';
 }
 /** Zwykly zapis kWh (bez kwadracikow) — pod PV */
 function fmtKwhPlain(n){
-  if(n==null||Number.isNaN(n)) return '—';
-  return (Math.round(n*100)/100).toFixed(2).replace('.',',')+' kWh';
+  var s=fmtPlGrouped(n,2);
+  if(s==null) return '—';
+  return s+' kWh';
 }
 
 function parseTimeMs(v) {
@@ -587,6 +604,12 @@ async function tick(){
     var pvK=j.kwh_pv_today;
     if(useTodayEl) useTodayEl.textContent=fmtKwhDelta(useK);
     if(pvTodayEl) pvTodayEl.textContent=fmtKwhDelta(pvK);
+    var pvPlainEl = document.getElementById('pv-kwh-plain');
+    if (pvPlainEl) {
+      pvPlainEl.textContent = (j.pv_kwh_total != null && !Number.isNaN(j.pv_kwh_total))
+        ? fmtKwhPlain(j.pv_kwh_total) : '—';
+    }
+    setTxt('pv-kwh-ts-line', j.pv_kwh_ts ? ('Ostatni odczyt licznika kWh: ' + j.pv_kwh_ts) : '');
     if (pvTodayEl && useTodayEl) {
       pvTodayEl.classList.remove('pv-higher');
       useTodayEl.classList.remove('pv-higher');
