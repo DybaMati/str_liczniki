@@ -254,6 +254,8 @@ function drawSparkline(container, series, yMax){
     tooltip: {
       trigger: 'axis',
       confine: true,
+      appendToBody: false,
+      className: 'panel-echart-tip',
       backgroundColor: 'rgba(22,22,22,0.96)',
       borderColor: '#404040',
       borderWidth: 1,
@@ -327,6 +329,7 @@ function createMeterCard(c, idx, yMax) {
   const el = document.createElement('article');
   el.className = 'meter-card';
   el.setAttribute('data-meter-idx', String(idx));
+  el.setAttribute('data-meter-label', c.label || 'Licznik');
   el.innerHTML =
     '<div class="meter-head">'+
     '  <h3 class="meter-title">'+(c.label||'Licznik')+'</h3>'+

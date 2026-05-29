@@ -203,6 +203,9 @@
     }
     .copy-val { cursor: copy; -webkit-user-select: none; user-select: none; touch-action: manipulation; }
     .copy-val.copy-flash { outline: 1px solid rgba(59, 130, 246, 0.65); border-radius: 4px; }
+    /* Tooltip ECharts — pod sticky nav (z-index 200), nie nachodzi na pasek przy scrollu */
+    .panel-echart-tip { z-index: 150 !important; }
+    .pv-chart-box, .spark-wrap { position: relative; z-index: 1; }
     @media (max-width: 480px) {
       .nav { padding-top: 8px; padding-bottom: 8px; }
     }
@@ -356,15 +359,21 @@
     function clearPress() {
       if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; }
     }
+    function meterLabelFor(el) {
+      var card = el.closest('.meter-card');
+      return card ? (card.getAttribute('data-meter-label') || '').trim() : '';
+    }
     function doCopy() {
       var raw = el.getAttribute('data-copy');
       if (raw == null) raw = (el.textContent || '').trim();
+      var name = meterLabelFor(el);
       copyPlainText(raw).then(function () {
         el.classList.add('copy-flash');
         setTimeout(function () { el.classList.remove('copy-flash'); }, 400);
-        showToast('Skopiowano');
+        showToast(name ? ('Skopiowano licznik: ' + name) : 'Skopiowano');
       }).catch(function () {});
     }
+    el.setAttribute('title', 'Przytrzymaj lub kliknij 2×, aby skopiować');
     el.addEventListener('touchstart', function (e) {
       clearPress();
       pressTimer = setTimeout(function () { doCopy(); }, 550);
@@ -372,6 +381,10 @@
     el.addEventListener('touchend', clearPress, { passive: true });
     el.addEventListener('touchmove', clearPress, { passive: true });
     el.addEventListener('touchcancel', clearPress, { passive: true });
+    el.addEventListener('dblclick', function (e) {
+      e.preventDefault();
+      doCopy();
+    });
     el.addEventListener('contextmenu', function (e) {
       e.preventDefault();
       doCopy();

@@ -203,7 +203,13 @@
         option = {
             backgroundColor: 'transparent',
             grid: { left: 10, right: 10, top: 45, bottom: 108, containLabel: true },
-            tooltip: { trigger: 'axis', axisPointer: { type: 'cross' }, formatter: function(params) { 
+            tooltip: {
+                trigger: 'axis',
+                axisPointer: { type: 'cross' },
+                confine: true,
+                appendToBody: false,
+                className: 'panel-echart-tip',
+                formatter: function(params) { 
                 let r =
 '<b>' + params[0].axisValueLabel + '</b><br/>';
                 var axisVal = params && params[0] ? params[0].axisValue : null;
