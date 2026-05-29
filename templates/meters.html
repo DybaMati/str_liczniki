@@ -1,7 +1,6 @@
 {% extends "base.html" %}
 {% block content %}
 <style>
-.m-intro{color:#888;font-size:clamp(13px,3.2vw,14px);margin:0 0 12px;line-height:1.45;max-width:100%}
 .pv-range{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:14px}
 .pv-range label{color:#ccc;font-size:13px}
 .pv-range input[type="date"]{background:#1e1e1e;border:1px solid #444;color:#fff;padding:6px 8px;border-radius:4px;font-size:max(14px,1rem);min-height:44px;max-width:100%}
@@ -47,13 +46,6 @@ table.meters-tbl{width:max-content;max-width:100%;table-layout:auto;border-colla
 .m-balance-row .val.net-neg{color:#f87171}
 .m-balance-hint{font-size:11px;color:#666;margin:12px 0 0;line-height:1.45}
 </style>
-
-<h1 style="font-weight:600;font-size:clamp(1.1rem,4vw,1.2rem);margin:0 0 8px">Zużycie liczników (kWh)</h1>
-<p class="m-intro">
-  <strong>Początek:</strong> pierwszy zapis <code>energia_kwh</code> w pierwszym dniu zakresu (od 00:00:00).
-  <strong>Koniec:</strong> ostatni zapis w ostatnim dniu przed północą następnego dnia.
-  <strong>Różnica:</strong> koniec kWh − początek kWh.
-</p>
 
 <div class="pv-range">
   <label for="m-from">Od</label>
@@ -214,7 +206,7 @@ async function loadMeters() {
     hideBalance();
     return;
   }
-  status.textContent = 'Ładowanie…';
+  status.textContent = '';
   try {
     const r = await fetch('/api/meters-delta?from=' + encodeURIComponent(from) + '&to=' + encodeURIComponent(to));
     const j = await r.json();
