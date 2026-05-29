@@ -153,7 +153,7 @@
         return new Date().toISOString().slice(0, 10);
     }
 
-    const LOAD_DELAY_MS = 2000;
+    const LOAD_DELAY_MS = 3000;
     let loadGen = 0;
     let debounceTimer = null;
     let progressTimer = null;
@@ -293,61 +293,46 @@
         clearLoadTimers();
         if (myGen !== loadGen) return;
 
+        var estSec = 5;
+        var estimateDetail = '';
         showOverlayUi({
-            msg: 'Sprawdzam rozmiar danych…',
+            msg: 'Ładowanie danych…',
             detail: '',
             showBar: true,
             showCancel: true,
-            pct: 2
+            pct: 3
         });
 
-        var estSec = 3;
-        var estimateDetail = '';
-        try {
-            var estR = await fetch('/api/history/estimate?from=' + encodeURIComponent(from) + '&to=' + encodeURIComponent(to));
-            var estJ = await estR.json();
-            if (myGen !== loadGen) return;
-            if (!estR.ok || !estJ.ok) throw new Error('estimate');
-            estSec = estJ.estimated_seconds || 3;
-            var plotted = estJ.plotted_estimate || 0;
-            estimateDetail = 'PV: ' + (estJ.pv_rows || 0) + ' odczytów · liczniki: ' + (estJ.meter_rows || 0)
-                + ' · szac. na wykres: ~' + plotted + ' pkt · czas: ~' + estSec + ' s';
-            showOverlayUi({
-                msg: 'Ładowanie danych…',
-                detail: estimateDetail,
-                showBar: true,
-                showCancel: true,
-                pct: 8
-            });
-        } catch (e) {
-            if (myGen !== loadGen) return;
-            estimateDetail = 'Nie udało się oszacować rozmiaru — ładuję…';
-            showOverlayUi({
-                msg: 'Ładowanie danych…',
-                detail: estimateDetail,
-                showBar: true,
-                showCancel: true,
-                pct: 8
-            });
-        }
-
         activeAbort = new AbortController();
+        var estPromise = fetch('/api/history/estimate?from=' + encodeURIComponent(from) + '&to=' + encodeURIComponent(to))
+            .then(function (r) { return r.json(); })
+            .then(function (estJ) {
+                if (myGen !== loadGen || !estJ || !estJ.ok) return;
+                estSec = estJ.estimated_seconds || 5;
+                var plotted = estJ.plotted_estimate || 0;
+                estimateDetail = 'PV: ' + (estJ.pv_rows || 0) + ' odcz. · liczniki: ' + (estJ.meter_rows || 0)
+                    + ' · wykres ~' + plotted + ' pkt · ~' + estSec + ' s';
+            })
+            .catch(function () {});
+
         var t0 = Date.now();
         progressTimer = setInterval(function () {
             if (myGen !== loadGen) return;
             var elapsed = (Date.now() - t0) / 1000;
-            var pct = Math.min(95, Math.round(8 + (elapsed / estSec) * 87));
+            var pct = Math.min(95, Math.round(5 + (elapsed / estSec) * 90));
             setProgress(pct, true);
             var left = Math.max(0, estSec - elapsed);
-            if (overlayDetail()) {
-                overlayDetail().textContent = estimateDetail + ' · pozostało ~' + Math.ceil(left) + ' s';
-            }
+            var line = estimateDetail
+                ? (estimateDetail + ' · ~' + Math.ceil(left) + ' s')
+                : ('Trwa pobieranie… ~' + Math.ceil(left) + ' s');
+            if (overlayDetail()) overlayDetail().textContent = line;
         }, 200);
 
         try {
             const r = await fetch('/api/history?from=' + encodeURIComponent(from) + '&to=' + encodeURIComponent(to), {
                 signal: activeAbort.signal
             });
+            await estPromise;
             const msg = await r.json();
             clearLoadTimers();
             activeAbort = null;
