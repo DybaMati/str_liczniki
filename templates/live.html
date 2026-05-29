@@ -348,6 +348,7 @@ function drawSparkline(container, series, yMax){
         var v=p.value;
         if (Array.isArray(v)) v = v[1];
         if (gap) v = '-';
+        else if (v != null && !isNaN(v)) v = Math.round(Number(v));
         if (v == null || isNaN(v)) v = '-';
 
         var mins = gap ? Math.max(0, Math.round((gap.endMs - gap.startMs)/60000)) : null;
