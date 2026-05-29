@@ -51,7 +51,7 @@
   <div class="chart-wrap">
     <div id="pvChart" class="pv-chart-box"></div>
     <div class="chart-overlay" id="chart-overlay">
-      <p class="chart-overlay-msg" id="chart-overlay-msg">Brak danych — wybierz zakres dat i kliknij Wyślij.</p>
+      <p class="chart-overlay-msg" id="chart-overlay-msg">Przygotowanie wykresu na dziś…</p>
       <p class="chart-overlay-detail" id="chart-overlay-detail"></p>
       <div class="chart-progress" id="chart-progress">
         <div class="chart-progress-track"><div class="chart-progress-fill" id="chart-progress-fill"></div></div>
@@ -151,7 +151,8 @@
     }
 
     function todayStr() {
-        return new Date().toISOString().slice(0, 10);
+        var d = new Date();
+        return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate());
     }
 
     const LOAD_DELAY_MS = 3000;
