@@ -54,18 +54,19 @@ def _range_boundaries(date_from: str, date_to: str) -> Dict[str, str]:
 
 
 def _fetch_meter_watts_series(licznik_id: int) -> List[Dict[str, Any]]:
+    # hours jako int w SQL — MySQL/PyMySQL nie obsługuje bind w INTERVAL :hours HOUR
     hours = max(1, min(int(get_settings().live_sparkline_hours), 168))
     rows = fetch_all(
         text(
-            """
+            f"""
             SELECT `timestamp` AS ts, moc_w AS w
             FROM licznik_pomiary
             WHERE licznik_id = :lid
-              AND `timestamp` >= (NOW() - INTERVAL :hours HOUR)
+              AND `timestamp` >= DATE_SUB(NOW(), INTERVAL {hours} HOUR)
             ORDER BY `timestamp` ASC
             """
         ),
-        {"lid": licznik_id, "hours": hours},
+        {"lid": licznik_id},
     )
     out: List[Dict[str, Any]] = []
     for r in rows:

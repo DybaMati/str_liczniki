@@ -247,7 +247,13 @@ async def api_fv_upload(file: UploadFile = File(...)):
 
 @app.get("/api/live")
 async def api_live():
-    row = str_data.fetch_live()
+    try:
+        row = str_data.fetch_live()
+    except Exception as exc:
+        return JSONResponse(
+            status_code=500,
+            content={"ok": False, "error": f"blad serwera: {exc}"},
+        )
     if not row:
         return JSONResponse({"ok": False, "error": "brak danych"})
     t = _fmt_ts(row.get("ts"))

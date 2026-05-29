@@ -486,16 +486,28 @@ function scheduleNextTick(seconds){
   _nextTickTimer = setTimeout(tick, seconds * 1000);
 }
 
+function setTxt(id, val) {
+  var el = document.getElementById(id);
+  if (el) el.textContent = val;
+}
+
 async function tick(){
   const st=document.getElementById('pv-status');
   const loadingEl=document.getElementById('pv-loading');
   try{
     const r=await fetch('/api/live');
-    const j=await r.json();
-    if(!j.ok){
+    var j;
+    try { j = await r.json(); } catch (parseErr) {
+      showConnModal('Serwer zwrocil niepoprawna odpowiedz (HTTP ' + r.status + ').');
+      showRetryMessage('Blad odpowiedzi API.', 5);
+      scheduleNextTick(5);
+      return;
+    }
+    if (!r.ok || !j.ok) {
+      var errMsg = (j && j.error) ? j.error : ('HTTP ' + r.status);
       if(loadingEl) { loadingEl.classList.add('is-done'); loadingEl.style.display='none'; }
-      showConnModal(j.error||'Brak danych w bazie.');
-      showRetryMessage((j.error||'Brak danych w bazie') + '.', 5);
+      showConnModal(errMsg || 'Brak danych w bazie.');
+      showRetryMessage((errMsg || 'Brak danych w bazie') + '.', 5);
       if (!_metersInitialized) {
         var mgErr = document.getElementById('meter-grid');
         if (mgErr) mgErr.innerHTML='<p class="err">'+(j.error||'Brak danych')+'</p>';
@@ -534,13 +546,20 @@ async function tick(){
     if(useTodayEl) useTodayEl.textContent=fmtKwhDelta(useK);
     if(pvTodayEl) pvTodayEl.textContent=fmtKwhDelta(pvK);
     markCompareHigher(pvTodayEl, useTodayEl, pvK, useK);
-    document.getElementById('today-label').textContent=j.today_period_label||'-';
+    setTxt('today-label', j.today_period_label || '-');
     var netEl=document.getElementById('bal-net');
     var net=j.kwh_balance_today;
-    netEl.textContent=fmtKwhDelta(net);
-    netEl.className='val'+(net!=null && !Number.isNaN(net) ? (net>0?' net-pos':(net<0?' net-neg':'')) : '');
+    if (netEl) {
+      netEl.textContent=fmtKwhDelta(net);
+      netEl.className='val'+(net!=null && !Number.isNaN(net) ? (net>0?' net-pos':(net<0?' net-neg':'')) : '');
+    }
     await ensureEcharts();
-    renderMeters(j.meter_cards||[], j.wat_y_max||500);
+    try {
+      renderMeters(j.meter_cards||[], j.wat_y_max||500);
+    } catch (chartErr) {
+      console.error(chartErr);
+      if (st) st.textContent = 'Wykresy licznikow: ' + chartErr;
+    }
     scheduleNextTick(20);
   }catch(e){
     if(loadingEl) loadingEl.style.display='none';
