@@ -309,6 +309,54 @@ def _last_meter_before(licznik_id: int, before_ts: str) -> Optional[float]:
     return float(row["v"])
 
 
+def fetch_history_estimate(date_from: str, date_to: str) -> Dict[str, Any]:
+    """Szybki podgląd rozmiaru zakresu przed pełnym /api/history."""
+    p = _range_boundaries(date_from, date_to)
+    id1, id2, id3 = _ids()
+    pv_row = fetch_one(
+        text(
+            """
+            SELECT COUNT(*) AS c
+            FROM sofar_data
+            WHERE `timestamp` >= :ts_from AND `timestamp` <= :ts_to
+            """
+        ),
+        p,
+    )
+    m_row = fetch_one(
+        text(
+            f"""
+            SELECT COUNT(*) AS c
+            FROM licznik_pomiary
+            WHERE licznik_id IN ({id1}, {id2}, {id3})
+              AND `timestamp` >= :ts_from AND `timestamp` <= :ts_to
+            """
+        ),
+        p,
+    )
+    pv_c = int((pv_row or {}).get("c") or 0)
+    m_c = int((m_row or {}).get("c") or 0)
+    raw_rows = pv_c + m_c
+    # Scalone serie: co najwyżej tyle unikalnych znaczników czasu co suma zdarzeń.
+    estimated_points = raw_rows
+    plotted_max = 6000
+    plotted_est = min(estimated_points, plotted_max) if estimated_points else 0
+    # Empirycznie: zapytania + merge + JSON — ok. 3–5k wierszy/s
+    est_sec = 0.8 + (raw_rows / 4500.0) + (plotted_est / 12000.0)
+    if raw_rows > 200_000:
+        est_sec += (raw_rows - 200_000) / 8000.0
+    est_sec = max(1.0, min(180.0, est_sec))
+    return {
+        "pv_rows": pv_c,
+        "meter_rows": m_c,
+        "raw_rows": raw_rows,
+        "estimated_points": estimated_points,
+        "plotted_estimate": plotted_est,
+        "plotted_max": plotted_max,
+        "estimated_seconds": round(est_sec, 1),
+    }
+
+
 def fetch_history_merged(date_from: str, date_to: str) -> List[Dict[str, Any]]:
     p = _range_boundaries(date_from, date_to)
     ts_start = p["ts_from"]

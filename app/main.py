@@ -280,17 +280,31 @@ async def api_live():
     }
 
 
-@app.get("/api/history")
-async def api_history(
-    date_from: str = Query(..., alias="from"),
-    date_to: str = Query(..., alias="to"),
-):
+def _parse_history_dates(date_from: str, date_to: str) -> None:
     try:
         datetime.strptime(date_from, "%Y-%m-%d")
         datetime.strptime(date_to, "%Y-%m-%d")
     except ValueError:
         raise HTTPException(status_code=400, detail="from/to muszą być w formacie YYYY-MM-DD")
     _validate_date_range_not_inverted(date_from, date_to)
+
+
+@app.get("/api/history/estimate")
+async def api_history_estimate(
+    date_from: str = Query(..., alias="from"),
+    date_to: str = Query(..., alias="to"),
+):
+    _parse_history_dates(date_from, date_to)
+    est = str_data.fetch_history_estimate(date_from, date_to)
+    return {"ok": True, **est}
+
+
+@app.get("/api/history")
+async def api_history(
+    date_from: str = Query(..., alias="from"),
+    date_to: str = Query(..., alias="to"),
+):
+    _parse_history_dates(date_from, date_to)
     out = str_data.fetch_history_merged(date_from, date_to)
     return {"ok": True, "data": out}
 
