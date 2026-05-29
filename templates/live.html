@@ -21,6 +21,10 @@ main { max-width: min(100%, 1600px); }
 .pv-day-lbl{display:block;font-size:12px;color:#9ca3af;margin-bottom:4px}
 .pv-hero-kwh{display:block;font-size:clamp(1.35rem,4.8vw,2.1rem);font-weight:700;font-variant-numeric:tabular-nums;color:#e5e7eb;line-height:1.15}
 .pv-hero-kwh.pv-higher{color:#93c5fd}
+.pv-total-stat{margin-top:12px;padding-top:10px;border-top:1px solid rgba(255,255,255,0.08)}
+.pv-total-kwh{display:block;font-size:clamp(1.1rem,3.2vw,1.5rem);font-weight:600;font-variant-numeric:tabular-nums;color:#d4d4d4;margin-top:4px}
+.pv-total-ts{display:block;font-size:11px;color:#666;margin-top:6px;line-height:1.35}
+.kwh-odo .sep-group{display:inline-block;width:0.35em;color:#6b7280}
 .pv-card-value{font-size:22px;font-weight:600;margin:0}
 .pv-meta{color:#888;font-size:13px;margin:0;min-height:0}
 .pv-meta:empty{display:none}
@@ -41,6 +45,7 @@ main { max-width: min(100%, 1600px); }
 .meter-row{display:flex;justify-content:space-between;gap:8px;align-items:baseline}
 .meter-row b{font-size:12px;color:#a9a9a9;font-weight:500}
 .meter-row span{font-size:15px;font-variant-numeric:tabular-nums}
+.meter-row-kwh .kwh-meter-copy.copy-val{cursor:copy}
 .kwh-odo{display:inline-flex;align-items:center;gap:4px;font-variant-numeric:tabular-nums}
 .kwh-odo .cell{display:inline-flex;align-items:center;justify-content:center;min-width:17px;height:24px;padding:0 5px;border-radius:5px;border:1px solid #3a3a3a;background:#1a1a1a;color:#e5e5e5;font-size:16px;line-height:1}
 .kwh-odo .sep{color:#9ca3af;padding:0 1px}
@@ -91,6 +96,11 @@ main { max-width: min(100%, 1600px); }
     <div class="pv-day-stat">
       <span class="pv-day-lbl">Łączna produkcja dzisiaj</span>
       <span class="pv-hero-kwh" id="pv-kwh-today">-</span>
+    </div>
+    <div class="pv-total-stat">
+      <span class="pv-day-lbl">Wyprodukowano od początku</span>
+      <span class="pv-total-kwh" id="pv-kwh-plain">-</span>
+      <span class="pv-total-ts" id="pv-kwh-ts-line"></span>
     </div>
   </div>
   <div class="pv-card">
@@ -346,9 +356,18 @@ function drawSparkline(container, series, yMax){
   requestAnimationFrame(function(){ try{ chart.resize(); }catch(e){} });
 }
 
+function clearCopyable(el) {
+  if (!el) return;
+  el.classList.remove('copy-val', 'copy-flash');
+  el.removeAttribute('data-copy');
+  el.removeAttribute('title');
+}
+
+/** Kopiowanie tylko stanu licznika kWh (Zużycie licznik). */
 function bindCopyable(el, plain) {
   if (!el) return;
   el.setAttribute('data-copy', plain);
+  el.setAttribute('title', 'Kliknij 2× aby skopiować odczyt licznika (kWh)');
   if (window.panelCopyOnLongPress) window.panelCopyOnLongPress(el);
 }
 
@@ -396,11 +415,14 @@ function updateMeterCard(el, c, yMax) {
   var kTxt = (c.kwh != null && !Number.isNaN(c.kwh)) ? String(Math.round(c.kwh * 100) / 100) : '-';
   var ktTxt = fmtKwhDelta(c.kwh_today);
 
-  if (vEl) { vEl.textContent = vTxt; bindCopyable(vEl, vTxt); }
-  if (wEl) { wEl.textContent = wTxt; bindCopyable(wEl, wTxt); }
-  if (aEl) { aEl.textContent = aTxt; bindCopyable(aEl, aTxt); }
-  if (kEl) { kEl.innerHTML = fmtKOdo(c.kwh); bindCopyable(kEl, kTxt); }
-  if (ktEl) { ktEl.textContent = ktTxt; bindCopyable(ktEl, ktTxt); }
+  if (vEl) { vEl.textContent = vTxt; clearCopyable(vEl); }
+  if (wEl) { wEl.textContent = wTxt; clearCopyable(wEl); }
+  if (aEl) { aEl.textContent = aTxt; clearCopyable(aEl); }
+  if (kEl) {
+    kEl.innerHTML = fmtKOdo(c.kwh);
+    bindCopyable(kEl, kTxt);
+  }
+  if (ktEl) { ktEl.textContent = ktTxt; clearCopyable(ktEl); }
 
   var spark = el.querySelector('.spark');
   drawSparkline(spark, c.wat_series || [], yMax);
