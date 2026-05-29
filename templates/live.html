@@ -226,12 +226,13 @@ function disposeCharts(){
   _chartRefs = [];
 }
 function ensureEcharts(){
-  return new Promise(function(resolve){
+  return new Promise(function(resolve, reject){
     if(window.echarts){ _echartsLoaded=true; resolve(); return; }
     if(_echartsLoaded){ resolve(); return; }
     var s=document.createElement('script');
     s.src='https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js';
     s.onload=function(){ _echartsLoaded=true; resolve(); };
+    s.onerror=function(){ reject(new Error('Nie zaladowano ECharts (CDN)')); };
     document.head.appendChild(s);
   });
 }
@@ -534,11 +535,11 @@ async function tick(){
     if(sumEl) sumEl.textContent=fmtW(sumW);
     markCompareHigher(pvEl, sumEl, pvW, sumW);
     var pvDt=splitDateTime(j.pv_ts);
-    document.getElementById('pv-pv-d').textContent=pvDt.d;
-    document.getElementById('pv-pv-t').textContent=pvDt.t;
+    setTxt('pv-pv-d', pvDt.d);
+    setTxt('pv-pv-t', pvDt.t);
     var sumDt=newestTsSplit(j.l1_ts, j.l2_ts, j.l3_ts, j.time);
-    document.getElementById('pv-sum-d').textContent=sumDt.d;
-    document.getElementById('pv-sum-t').textContent=sumDt.t;
+    setTxt('pv-sum-d', sumDt.d);
+    setTxt('pv-sum-t', sumDt.t);
     var useTodayEl=document.getElementById('pv-use-today');
     var pvTodayEl=document.getElementById('pv-kwh-today');
     var useK=j.kwh_use_today;
@@ -562,13 +563,14 @@ async function tick(){
     }
     scheduleNextTick(20);
   }catch(e){
+    console.error('tick /live:', e);
     if(loadingEl) loadingEl.style.display='none';
-    showConnModal('Brak połączenia z serwerem. Sprawdz siec lub serwer API.');
-    showRetryMessage('Brak polaczenia z serwerem.', 5);
-    var mg=document.getElementById('meter-grid');
+    var detail = (e && e.message) ? e.message : String(e);
+    showConnModal('Blad strony: ' + detail);
+    showRetryMessage(detail, 5);
     if (!_metersInitialized) {
       var mg = document.getElementById('meter-grid');
-      if (mg) mg.innerHTML='<p class="err">Nie udalo sie pobrac danych licznikow. '+e+'</p>';
+      if (mg) mg.innerHTML='<p class="err">Blad JS: '+detail+'</p>';
     }
     scheduleNextTick(5);
   }
