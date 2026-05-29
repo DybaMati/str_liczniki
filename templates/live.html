@@ -62,7 +62,10 @@ main { max-width: min(100%, 1600px); }
 .live-balance-rows{display:grid;gap:10px}
 .live-balance-row{display:flex;justify-content:space-between;align-items:baseline;gap:12px;font-size:14px}
 .live-balance-row span:first-child{color:#a3a3a3}
-.live-balance-row .val{font-variant-numeric:tabular-nums;font-weight:600}
+.live-balance-row .val{font-variant-numeric:tabular-nums;font-weight:600;font-size:clamp(1rem,3vw,1.25rem)}
+.live-balance-row.row-net{margin-top:4px;padding-top:10px;border-top:1px solid rgba(255,255,255,0.12)}
+.live-balance-row.row-net span:first-child{font-weight:600;color:#d4d4d4}
+.live-balance-row.row-net .val{font-size:clamp(1.15rem,3.5vw,1.45rem)}
 .live-balance-row .val.net-pos{color:#34d399}
 .live-balance-row .val.net-neg{color:#f87171}
 
@@ -136,7 +139,9 @@ main { max-width: min(100%, 1600px); }
 <section class="live-balance" id="live-balance" aria-label="Bilans dzis">
   <h3 class="live-balance-title">Bilans — dziś (<span id="today-label">-</span>)</h3>
   <div class="live-balance-rows">
-    <div class="live-balance-row"><span>Produkcja − zużycie</span><span class="val" id="bal-net">-</span></div>
+    <div class="live-balance-row"><span>Wyprodukowano PV (dzisiaj)</span><span class="val" id="bal-pv">-</span></div>
+    <div class="live-balance-row"><span>Suma zużycia L1+L2+L3 (dzisiaj)</span><span class="val" id="bal-use">-</span></div>
+    <div class="live-balance-row row-net"><span>Różnica (produkcja − zużycie)</span><span class="val" id="bal-net">-</span></div>
   </div>
 </section>
 
@@ -571,6 +576,8 @@ async function tick(){
       }
     }
     setTxt('today-label', j.today_period_label || '-');
+    setTxt('bal-pv', fmtKwhDelta(j.kwh_pv_today));
+    setTxt('bal-use', fmtKwhDelta(j.kwh_use_today));
     var netEl=document.getElementById('bal-net');
     var net=j.kwh_balance_today;
     if (netEl) {
