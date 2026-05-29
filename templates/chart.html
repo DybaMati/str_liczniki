@@ -250,8 +250,8 @@
 
     function setOverlayIdle() {
         showOverlayUi({
-            msg: 'Brak danych — wybierz zakres dat i kliknij Wyślij.',
-            detail: '',
+            msg: 'Brak danych na wykresie.',
+            detail: 'Ustaw daty i kliknij Wyślij (domyślnie: dziś).',
             showBar: false,
             showCancel: false,
             pct: 0
@@ -567,7 +567,8 @@
 
         setTimeout(function() { chart.resize(); chartResponsive(); }, 300);
         window.addEventListener('resize', function() { chartResponsive(); });
-        setOverlayIdle();
+        initDateInputs();
+        scheduleLoad();
     }
 
     function loadData(data) {
