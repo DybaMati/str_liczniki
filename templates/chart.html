@@ -156,7 +156,7 @@
     }
 
     const LOAD_DELAY_MS = 3000;
-    let loadGen = 0;
+    let loadSeq = 0;
     let debounceTimer = null;
     let progressTimer = null;
     let activeAbort = null;
@@ -197,40 +197,6 @@
         if (minPct > loadPctCurrent) setProgress(minPct, true);
     }
 
-    async function fetchHistoryJson(from, to, signal, onByteProgress) {
-        var url = '/api/history?from=' + encodeURIComponent(from) + '&to=' + encodeURIComponent(to);
-        var r = await fetch(url, { signal: signal });
-        if (!r.ok) {
-            var errBody = null;
-            try { errBody = await r.json(); } catch (e) { errBody = null; }
-            return { ok: false, status: r.status, body: errBody };
-        }
-        var cl = parseInt(r.headers.get('content-length') || '0', 10);
-        if (!r.body || !cl || cl < 1) {
-            var jsonSimple = await r.json();
-            if (onByteProgress) onByteProgress(1);
-            return { ok: true, json: jsonSimple };
-        }
-        var reader = r.body.getReader();
-        var parts = [];
-        var got = 0;
-        while (true) {
-            var chunk = await reader.read();
-            if (chunk.done) break;
-            parts.push(chunk.value);
-            got += chunk.value.length;
-            if (onByteProgress) onByteProgress(Math.min(1, got / cl));
-        }
-        var merged = new Uint8Array(got);
-        var off = 0;
-        for (var i = 0; i < parts.length; i++) {
-            merged.set(parts[i], off);
-            off += parts[i].length;
-        }
-        var text = new TextDecoder('utf-8').decode(merged);
-        return { ok: true, json: JSON.parse(text) };
-    }
-
     function showOverlayUi(opts) {
         var ov = overlayEl();
         if (ov) ov.classList.remove('is-hidden');
@@ -259,9 +225,7 @@
         });
     }
 
-    function cancelPending() {
-        loadGen++;
-        clearLoadTimers();
+    function abortActiveFetch() {
         if (activeAbort) {
             try { activeAbort.abort(); } catch (e) {}
             activeAbort = null;
@@ -269,7 +233,9 @@
     }
 
     function cancelLoad() {
-        cancelPending();
+        loadSeq++;
+        clearLoadTimers();
+        abortActiveFetch();
         setOverlayIdle();
         var status = document.getElementById('pv-chart-status');
         if (status) status.textContent = 'Anulowano.';
@@ -294,8 +260,10 @@
             if (status) status.textContent = 'Data „Do” nie może być wcześniejsza niż „Od”.';
             return;
         }
-        cancelPending();
-        var myGen = loadGen;
+        loadSeq++;
+        var seq = loadSeq;
+        clearLoadTimers();
+        abortActiveFetch();
         clearChartData();
         if (status) status.textContent = '';
 
@@ -325,132 +293,110 @@
 
         debounceTimer = setTimeout(function () {
             debounceTimer = null;
-            if (myGen !== loadGen) return;
-            runLoadWrapped(from, to, myGen);
+            if (seq !== loadSeq) return;
+            runLoadWrapped(from, to, seq);
         }, LOAD_DELAY_MS);
     }
 
-    async function runLoad(from, to, myGen) {
+    async function runLoad(from, to, seq) {
         const status = document.getElementById('pv-chart-status');
         clearLoadTimers();
-        if (myGen !== loadGen) return;
+        if (seq !== loadSeq) return;
 
         loadPctCurrent = 0;
-        var estimateDetail = '';
         showOverlayUi({
             msg: 'Ładowanie danych…',
-            detail: 'Sprawdzam rozmiar zakresu…',
+            detail: 'Pobieram wykres z serwera…',
             showBar: true,
             showCancel: true,
-            pct: 5
+            pct: 8
         });
 
         activeAbort = new AbortController();
+        var estDetail = '';
+        fetch('/api/history/estimate?from=' + encodeURIComponent(from) + '&to=' + encodeURIComponent(to))
+            .then(function (r) { return r.json(); })
+            .then(function (estJ) {
+                if (seq !== loadSeq || !estJ || !estJ.ok) return;
+                estDetail = 'Szac.: ' + (estJ.raw_rows || 0) + ' odczytów · ~' + (estJ.plotted_estimate || 0) + ' pkt · ~' + (estJ.estimated_seconds || '?') + ' s';
+                if (overlayDetail()) overlayDetail().textContent = estDetail;
+            })
+            .catch(function () {});
+
+        progressTimer = setInterval(function () {
+            if (seq !== loadSeq) return;
+            bumpProgress(Math.min(loadPctCurrent + 2, 45));
+        }, 350);
+
         try {
-            var estR = await fetch('/api/history/estimate?from=' + encodeURIComponent(from) + '&to=' + encodeURIComponent(to), {
+            const r = await fetch('/api/history?from=' + encodeURIComponent(from) + '&to=' + encodeURIComponent(to), {
                 signal: activeAbort.signal
             });
-            var estJ = await estR.json();
-            if (myGen !== loadGen) return;
-            if (estR.ok && estJ && estJ.ok) {
-                var plotted = estJ.plotted_estimate || 0;
-                estimateDetail = 'Do pobrania: ' + (estJ.raw_rows || 0) + ' odczytów · na wykres ~' + plotted + ' punktów';
-                bumpProgress(12);
+            clearLoadTimers();
+            if (seq !== loadSeq) return;
+
+            const msg = await r.json();
+            if (!r.ok) {
+                var d = msg.detail;
+                var errTxt = typeof d === 'string' ? d : (Array.isArray(d) && d[0] && d[0].msg ? d[0].msg : 'Błąd zapytania');
+                if (status) status.textContent = errTxt;
+                showOverlayUi({ msg: errTxt, detail: '', showBar: false, showCancel: false, pct: 0 });
+                return;
+            }
+
+            bumpProgress(70);
+            if (overlayMsg()) overlayMsg().textContent = 'Rysuję wykres…';
+            if (overlayDetail()) overlayDetail().textContent = estDetail || 'Przetwarzam dane…';
+
+            if (msg.ok && msg.data && msg.data.length) {
+                bumpProgress(85);
+                var pr = loadData(msg.data);
+                if (window.panelMarkRefreshed) window.panelMarkRefreshed();
+                bumpProgress(100);
+                if (seq !== loadSeq) return;
+                hideOverlay();
+                if (status) {
+                    if (pr && pr.raw > pr.plotted) {
+                        status.textContent = pr.raw + ' punktów (wykres: ' + pr.plotted + ')';
+                    } else {
+                        status.textContent = (pr ? pr.raw : msg.data.length) + ' punktów';
+                    }
+                }
             } else {
-                estimateDetail = 'Pobieram dane z serwera…';
+                clearChartData();
+                if (status) status.textContent = 'Brak danych w zakresie';
+                showOverlayUi({
+                    msg: 'Brak danych w wybranym zakresie.',
+                    detail: 'Dziś: ' + from + (from !== to ? (' — ' + to) : '') + '. Zmień daty lub kliknij Wyślij.',
+                    showBar: false,
+                    showCancel: false,
+                    pct: 0
+                });
             }
         } catch (e) {
-            if (myGen !== loadGen) return;
-            if (e && e.name === 'AbortError') throw e;
-            estimateDetail = 'Pobieram dane z serwera…';
-        }
-
-        if (myGen !== loadGen) return;
-        if (overlayDetail()) overlayDetail().textContent = estimateDetail;
-        if (overlayMsg()) overlayMsg().textContent = 'Pobieranie z serwera…';
-        bumpProgress(15);
-
-        var fetchDone = false;
-        progressTimer = setInterval(function () {
-            if (myGen !== loadGen || fetchDone) return;
-            bumpProgress(Math.min(loadPctCurrent + 1, 18));
-        }, 400);
-
-        var result;
-        try {
-            result = await fetchHistoryJson(from, to, activeAbort.signal, function (frac) {
-                if (myGen !== loadGen) return;
-                var pct = 15 + Math.round(frac * 55);
-                bumpProgress(pct);
-                if (overlayDetail()) {
-                    overlayDetail().textContent = estimateDetail + ' · pobrano ' + Math.round(frac * 100) + '% pliku';
-                }
-            });
-        } finally {
-            fetchDone = true;
             clearLoadTimers();
-        }
-
-        if (myGen !== loadGen) return;
-        activeAbort = null;
-
-        if (!result.ok) {
-            var msg = result.body || {};
-            var d = msg.detail;
-            var errTxt = typeof d === 'string' ? d : (Array.isArray(d) && d[0] && d[0].msg ? d[0].msg : 'Błąd zapytania');
-            if (status) status.textContent = errTxt;
-            showOverlayUi({ msg: errTxt, detail: '', showBar: false, showCancel: false, pct: 0 });
-            return;
-        }
-
-        bumpProgress(72);
-        if (overlayMsg()) overlayMsg().textContent = 'Przetwarzanie danych…';
-        if (overlayDetail()) overlayDetail().textContent = 'Przygotowuję wykres…';
-
-        const msg = result.json;
-        bumpProgress(82);
-
-        if (msg.ok && msg.data && msg.data.length) {
-            bumpProgress(88);
-            var pr = loadData(msg.data);
-            if (window.panelMarkRefreshed) window.panelMarkRefreshed();
-            bumpProgress(100);
-            if (overlayMsg()) overlayMsg().textContent = 'Gotowe';
-            if (overlayDetail()) {
-                overlayDetail().textContent = (pr && pr.raw > pr.plotted)
-                    ? ('Załadowano ' + pr.raw + ' punktów (na wykresie ' + pr.plotted + ')')
-                    : ('Załadowano ' + (pr ? pr.raw : msg.data.length) + ' punktów');
-            }
-            await new Promise(function (resolve) { setTimeout(resolve, 350); });
-            if (myGen !== loadGen) return;
-            hideOverlay();
-            if (status) {
-                if (pr && pr.raw > pr.plotted) {
-                    status.textContent = pr.raw + ' punktów (wykres: ' + pr.plotted + ')';
-                } else {
-                    status.textContent = (pr ? pr.raw : msg.data.length) + ' punktów';
-                }
-            }
-        } else {
-            clearChartData();
-            if (status) status.textContent = 'Brak danych w zakresie';
+            if (seq !== loadSeq) return;
+            if (e && e.name === 'AbortError') throw e;
+            if (status) status.textContent = 'Błąd: ' + e;
             showOverlayUi({
-                msg: 'Brak danych w wybranym zakresie.',
-                detail: 'Zmień daty i kliknij Wyślij ponownie.',
+                msg: 'Błąd połączenia z serwerem.',
+                detail: String(e),
                 showBar: false,
                 showCancel: false,
                 pct: 0
             });
+        } finally {
+            activeAbort = null;
         }
     }
 
-    async function runLoadWrapped(from, to, myGen) {
+    async function runLoadWrapped(from, to, seq) {
         try {
-            await runLoad(from, to, myGen);
+            await runLoad(from, to, seq);
         } catch (e) {
             clearLoadTimers();
-            activeAbort = null;
-            if (myGen !== loadGen) return;
+            abortActiveFetch();
+            if (seq !== loadSeq) return;
             var st = document.getElementById('pv-chart-status');
             if (e && e.name === 'AbortError') {
                 setOverlayIdle();
@@ -493,15 +439,29 @@
     }
 
     function loadECharts() {
-        if (window.echarts) return initChart();
+        if (window.echarts) {
+            initChart();
+            return;
+        }
         var script = document.createElement('script');
         script.src = 'https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js';
         script.onload = initChart;
+        script.onerror = function () {
+            showOverlayUi({
+                msg: 'Nie można załadować biblioteki wykresu.',
+                detail: 'Sprawdź internet lub odśwież stronę.',
+                showBar: false,
+                showCancel: false,
+                pct: 0
+            });
+        };
         document.head.appendChild(script);
     }
 
     function initChart() {
-        chart = echarts.init(document.getElementById('pvChart'));
+        var el = document.getElementById('pvChart');
+        if (!el) return;
+        chart = echarts.init(el);
 
         option = {
             backgroundColor: 'transparent',
@@ -634,8 +594,12 @@
         return { raw: data.length, plotted: slice.length };
     }
 
-    initDateInputs();
-    loadECharts();
+    function bootChartPage() {
+        initDateInputs();
+        loadECharts();
+    }
+
+    bootChartPage();
 
     document.getElementById('pv-send').addEventListener('click', scheduleLoad);
     document.getElementById('chart-cancel').addEventListener('click', cancelLoad);
