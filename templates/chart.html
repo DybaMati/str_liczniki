@@ -68,6 +68,8 @@
     let chart = null;
     let option = null;
     let gapIntervals = [];
+    /** kWh wyprodukowane w dniu — tylko do tooltipa PV, nie rysujemy osobnej linii */
+    let pvKwhDayAtIndex = [];
     /** Max. punktow na wykresie (wydajnosc); caly zakres dat — probkowanie rownomiernie od poczatku do konca (nie ostatnie N!) */
     const MAX_CHART_POINTS = 6000;
     /** Jesli odstęp czasu między kolejnymi punktami jest większy niż 10 min — pokażemy „luki” */
@@ -503,16 +505,13 @@
                     if (p.value == null) return;
                     var raw = p.value;
                     var w = null;
-                    var pvKwhDay = null;
-                    if (Array.isArray(raw)) {
-                        w = raw[1];
-                        if (raw.length > 2 && raw[2] != null && !Number.isNaN(raw[2])) pvKwhDay = raw[2];
-                    } else {
-                        w = raw;
-                    }
+                    if (Array.isArray(raw)) w = raw[1];
+                    else w = raw;
                     if (w == null) return;
                     r += '<span style="display:inline-block;width:10px;height:10px;background:' + p.color + ';margin-right:4px;border-radius:50%"></span>';
                     r += p.seriesName + ': <b>' + Math.round(w) + ' W</b><br/>';
+                    var pvKwhDay = (p.seriesName === 'PV produkcja' && p.dataIndex != null)
+                        ? pvKwhDayAtIndex[p.dataIndex] : null;
                     if (p.seriesName === 'PV produkcja' && pvKwhDay != null) {
                         r += '<span style="display:inline-block;width:10px;height:10px;margin-right:4px"></span>';
                         r += '<span style="color:#fcd34d;font-size:12px">Wyprodukowano: <b>' + fmtKwhPlain(pvKwhDay) + '</b></span><br/>';
@@ -565,6 +564,7 @@
         if (!data || !data.length || !chart) return null;
         var slice = pickPointsEvenly(data, MAX_CHART_POINTS);
         const s0 = [], s1 = [], s2 = [], s3 = [], s4 = [];
+        pvKwhDayAtIndex = [];
         let prevMs = null;
         let prevTime = null;
         const markAreas = [];
@@ -580,7 +580,8 @@
                 // „Łuk” dla czasu braku łączności + ucięcie linii (null = przerwanie).
                 markAreas.push([{ xAxis: prevMs }, { xAxis: ms }]);
                 gapIntervals.push({ startMs: prevMs, endMs: ms });
-                s0.push([ms, null, null]);
+                s0.push([ms, null]);
+                pvKwhDayAtIndex.push(null);
                 s1.push([ms, null]);
                 s2.push([ms, null]);
                 s3.push([ms, null]);
@@ -588,7 +589,8 @@
             } else {
                 const sum = (p.l1_w || 0) + (p.l2_w || 0) + (p.l3_w || 0);
                 var pvKwhDay = (p.pv_kwh_day != null && !Number.isNaN(p.pv_kwh_day)) ? p.pv_kwh_day : null;
-                s0.push([ms, Math.round(p.pv_w || 0), pvKwhDay]);
+                s0.push([ms, Math.round(p.pv_w || 0)]);
+                pvKwhDayAtIndex.push(pvKwhDay);
                 s1.push([ms, Math.round(p.l1_w || 0)]);
                 s2.push([ms, Math.round(p.l2_w || 0)]);
                 s3.push([ms, Math.round(p.l3_w || 0)]);
