@@ -409,8 +409,8 @@
       return '';
     }
     function toastMsg(name) {
-      if (name) return 'Skopiowano: ' + name;
-      return 'Skopiowano';
+      if (name) return 'Skopiowano licznik: ' + name;
+      return 'Skopiowano odczyt kWh';
     }
     function doCopy() {
       if (copyLock) return;
@@ -431,7 +431,9 @@
       if (e) { e.preventDefault(); e.stopPropagation(); }
       doCopy();
     }
-    el.setAttribute('title', 'Kliknij 2× (telefon / mysz), aby skopiować');
+    if (!el.getAttribute('title')) {
+      el.setAttribute('title', 'Kliknij 2× (telefon / mysz), aby skopiować');
+    }
     el.addEventListener('touchstart', function () {
       clearPress();
       if (isCoarsePointer()) {

@@ -70,12 +70,6 @@
 </style>
 
 <div class="fv-page">
-<h1 style="font-weight:700;font-size:clamp(1.25rem,4vw,1.45rem);margin:0 0 10px;color:#fafafa">Rozliczenie FV energii</h1>
-<p class="fv-intro">
-  Wgraj PDF faktury ENERGA. Odczyty licznika (pobrano / wprowadzono), stan wskazań, porównanie z 3 licznikami i PV,
-  pozycje opłat, suma <strong>stałych</strong> i <strong>zmiennych</strong>, podział na liczniki. Usuń FV koszem — znika też PDF.
-</p>
-
 <div class="fv-upload">
   <input type="file" id="fv-file" accept="application/pdf,.pdf" />
   <button type="button" id="fv-send">Wgraj FV</button>
@@ -85,7 +79,7 @@
 <div class="fv-layout">
   <aside class="fv-list">
     <h2>Zapisane FV</h2>
-    <ul id="fv-list-ul"><li class="fv-empty">Ładowanie…</li></ul>
+    <ul id="fv-list-ul"></ul>
   </aside>
   <div class="fv-detail" id="fv-detail">
     <p class="fv-empty">Wybierz fakturę z listy lub wgraj nową.</p>
@@ -387,7 +381,7 @@
     listUl.querySelectorAll('.fv-open').forEach(function (b) {
       b.classList.toggle('active', b.getAttribute('data-id') === id);
     });
-    detail.innerHTML = '<p class="fv-empty">Ładowanie…</p>';
+    detail.innerHTML = '<p class="fv-empty">Wczytywanie…</p>';
     fetch('/api/fv/' + encodeURIComponent(id))
       .then(function (r) { return r.json(); })
       .then(function (data) {
