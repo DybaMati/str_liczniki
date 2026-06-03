@@ -387,12 +387,35 @@ def fetch_history_merged(date_from: str, date_to: str) -> List[Dict[str, Any]]:
     )
 
     init_pv = _last_before("sofar_data", "`timestamp`", "moc_w", ts_start)
+    init_pv_kwh = _last_before("sofar_kwh", "`timestamp`", "produkcja", ts_start)
     init_l1 = _last_meter_before(id1, ts_start)
     init_l2 = _last_meter_before(id2, ts_start)
     init_l3 = _last_meter_before(id3, ts_start)
 
+    d0 = datetime.strptime(date_from, "%Y-%m-%d").date()
+    d1 = datetime.strptime(date_to, "%Y-%m-%d").date()
+    kwh_day_base: Dict[date, Optional[float]] = {}
+    cur = d0
+    while cur <= d1:
+        midnight, _ = _day_midnight_bounds(cur.isoformat())
+        kwh_day_base[cur] = _last_before("sofar_kwh", "`timestamp`", "produkcja", midnight)
+        cur += timedelta(days=1)
+
+    kwh_rows = fetch_all(
+        text(
+            """
+            SELECT `timestamp` AS ts, produkcja AS pv_kwh
+            FROM sofar_kwh
+            WHERE `timestamp` >= :ts_from AND `timestamp` <= :ts_to
+            ORDER BY `timestamp` ASC
+            """
+        ),
+        p,
+    )
+
     state = {
         "pv_w": init_pv if init_pv is not None else 0.0,
+        "pv_kwh": init_pv_kwh,
         "l1_w": init_l1 if init_l1 is not None else 0.0,
         "l2_w": init_l2 if init_l2 is not None else 0.0,
         "l3_w": init_l3 if init_l3 is not None else 0.0,
@@ -405,6 +428,12 @@ def fetch_history_merged(date_from: str, date_to: str) -> List[Dict[str, Any]]:
             events[ts] = {}
         if r.get("pv_w") is not None:
             events[ts]["pv_w"] = float(r["pv_w"])
+    for r in kwh_rows:
+        ts = _to_dt(r["ts"])
+        if ts not in events:
+            events[ts] = {}
+        if r.get("pv_kwh") is not None:
+            events[ts]["pv_kwh"] = float(r["pv_kwh"])
     for r in meter_rows:
         ts = _to_dt(r["ts"])
         if ts not in events:
@@ -423,21 +452,32 @@ def fetch_history_merged(date_from: str, date_to: str) -> List[Dict[str, Any]]:
         ev = events[ts]
         if "pv_w" in ev:
             state["pv_w"] = ev["pv_w"]
+        if "pv_kwh" in ev:
+            state["pv_kwh"] = ev["pv_kwh"]
         if "l1_w" in ev:
             state["l1_w"] = ev["l1_w"]
         if "l2_w" in ev:
             state["l2_w"] = ev["l2_w"]
         if "l3_w" in ev:
             state["l3_w"] = ev["l3_w"]
-        out.append(
-            {
-                "time": _fmt_ts(ts),
-                "pv_w": state["pv_w"],
-                "l1_w": state["l1_w"],
-                "l2_w": state["l2_w"],
-                "l3_w": state["l3_w"],
-            }
-        )
+        pv_kwh = state.get("pv_kwh")
+        pv_kwh_day = None
+        if pv_kwh is not None:
+            base = kwh_day_base.get(ts.date())
+            if base is not None:
+                pv_kwh_day = float(pv_kwh) - float(base)
+        row_out: Dict[str, Any] = {
+            "time": _fmt_ts(ts),
+            "pv_w": state["pv_w"],
+            "l1_w": state["l1_w"],
+            "l2_w": state["l2_w"],
+            "l3_w": state["l3_w"],
+        }
+        if pv_kwh is not None:
+            row_out["pv_kwh"] = float(pv_kwh)
+        if pv_kwh_day is not None:
+            row_out["pv_kwh_day"] = round(pv_kwh_day, 3)
+        out.append(row_out)
     return out
 
 

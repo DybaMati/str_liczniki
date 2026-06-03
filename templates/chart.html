@@ -84,6 +84,23 @@
     }
 
     function pad2(n) { return String(n).padStart(2, '0'); }
+
+    function fmtPlGrouped(n, dec) {
+        if (n == null || Number.isNaN(n)) return null;
+        dec = (dec == null) ? 2 : dec;
+        var neg = n < 0;
+        n = Math.abs(n);
+        var parts = (Math.round(n * Math.pow(10, dec)) / Math.pow(10, dec)).toFixed(dec).split('.');
+        var grouped = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+        var s = grouped + (dec > 0 ? (',' + (parts[1] || '')) : '');
+        return neg ? ('-' + s) : s;
+    }
+    function fmtKwhPlain(n) {
+        var s = fmtPlGrouped(n, 2);
+        if (s == null) return '—';
+        return s + ' kWh';
+    }
+
     function fmtTimeMs(ms) {
         if (ms == null || !isFinite(ms)) return '';
         var d = new Date(ms);
@@ -482,8 +499,25 @@
                         }
                     }
                 }
-                params.forEach(function(p) { if (p.value == null) return; var v = p.value; if (Array.isArray(v)) v = v[1]; if (v == null) return; r += '<span style="display:inline-block;width:10px;height:10px;background:' + p.color + ';margin-right:4px;border-radius:50%"></span>';
-                r += p.seriesName + ': <b>' + Math.round(v) + ' W</b><br/>'; }); 
+                params.forEach(function(p) {
+                    if (p.value == null) return;
+                    var raw = p.value;
+                    var w = null;
+                    var pvKwhDay = null;
+                    if (Array.isArray(raw)) {
+                        w = raw[1];
+                        if (raw.length > 2 && raw[2] != null && !Number.isNaN(raw[2])) pvKwhDay = raw[2];
+                    } else {
+                        w = raw;
+                    }
+                    if (w == null) return;
+                    r += '<span style="display:inline-block;width:10px;height:10px;background:' + p.color + ';margin-right:4px;border-radius:50%"></span>';
+                    r += p.seriesName + ': <b>' + Math.round(w) + ' W</b><br/>';
+                    if (p.seriesName === 'PV produkcja' && pvKwhDay != null) {
+                        r += '<span style="display:inline-block;width:10px;height:10px;margin-right:4px"></span>';
+                        r += '<span style="color:#fcd34d;font-size:12px">Wyprodukowano: <b>' + fmtKwhPlain(pvKwhDay) + '</b></span><br/>';
+                    }
+                });
                 return r; } },
             legend: {
                 data: ['PV produkcja', 'Tomek L1', 'Lonia L2', 'Henia L3', 'Suma zużycia'],
@@ -546,14 +580,15 @@
                 // „Łuk” dla czasu braku łączności + ucięcie linii (null = przerwanie).
                 markAreas.push([{ xAxis: prevMs }, { xAxis: ms }]);
                 gapIntervals.push({ startMs: prevMs, endMs: ms });
-                s0.push([ms, null]);
+                s0.push([ms, null, null]);
                 s1.push([ms, null]);
                 s2.push([ms, null]);
                 s3.push([ms, null]);
                 s4.push([ms, null]);
             } else {
                 const sum = (p.l1_w || 0) + (p.l2_w || 0) + (p.l3_w || 0);
-                s0.push([ms, Math.round(p.pv_w || 0)]);
+                var pvKwhDay = (p.pv_kwh_day != null && !Number.isNaN(p.pv_kwh_day)) ? p.pv_kwh_day : null;
+                s0.push([ms, Math.round(p.pv_w || 0), pvKwhDay]);
                 s1.push([ms, Math.round(p.l1_w || 0)]);
                 s2.push([ms, Math.round(p.l2_w || 0)]);
                 s3.push([ms, Math.round(p.l3_w || 0)]);
