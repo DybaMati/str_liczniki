@@ -273,6 +273,25 @@ def fetch_live() -> Optional[Dict[str, Any]]:
     }
 
 
+def _pv_kwh_at_or_before(until_ts: str) -> Optional[float]:
+    """Ostatni odczyt produkcji z sofar_kwh w chwili until_ts lub wcześniej."""
+    row = fetch_one(
+        text(
+            """
+            SELECT produkcja AS v
+            FROM sofar_kwh
+            WHERE `timestamp` <= :t
+            ORDER BY `timestamp` DESC
+            LIMIT 1
+            """
+        ),
+        {"t": until_ts},
+    )
+    if not row or row.get("v") is None:
+        return None
+    return float(row["v"])
+
+
 def _last_before(table: str, ts_col: str, val_col: str, before_ts: str) -> Optional[float]:
     row = fetch_one(
         text(
@@ -392,15 +411,6 @@ def fetch_history_merged(date_from: str, date_to: str) -> List[Dict[str, Any]]:
     init_l2 = _last_meter_before(id2, ts_start)
     init_l3 = _last_meter_before(id3, ts_start)
 
-    d0 = datetime.strptime(date_from, "%Y-%m-%d").date()
-    d1 = datetime.strptime(date_to, "%Y-%m-%d").date()
-    kwh_day_base: Dict[date, Optional[float]] = {}
-    cur = d0
-    while cur <= d1:
-        midnight, _ = _day_midnight_bounds(cur.isoformat())
-        kwh_day_base[cur] = _last_before("sofar_kwh", "`timestamp`", "produkcja", midnight)
-        cur += timedelta(days=1)
-
     kwh_rows = fetch_all(
         text(
             """
@@ -447,6 +457,7 @@ def fetch_history_merged(date_from: str, date_to: str) -> List[Dict[str, Any]]:
         elif lid == id3:
             events[ts]["l3_w"] = v
 
+    day_kwh_anchor: Dict[date, Optional[float]] = {}
     out: List[Dict[str, Any]] = []
     for ts in sorted(events.keys()):
         ev = events[ts]
@@ -461,11 +472,19 @@ def fetch_history_merged(date_from: str, date_to: str) -> List[Dict[str, Any]]:
         if "l3_w" in ev:
             state["l3_w"] = ev["l3_w"]
         pv_kwh = state.get("pv_kwh")
-        pv_kwh_day = None
+        pv_kwh_moment = None
         if pv_kwh is not None:
-            base = kwh_day_base.get(ts.date())
-            if base is not None:
-                pv_kwh_day = float(pv_kwh) - float(base)
+            d = ts.date()
+            if d not in day_kwh_anchor:
+                midnight, _ = _day_midnight_bounds(d.isoformat())
+                # Stan licznika na początku doby (ostatni odczyt <= północ).
+                day_kwh_anchor[d] = _pv_kwh_at_or_before(midnight)
+            anchor = day_kwh_anchor[d]
+            if anchor is None:
+                # Brak odczytu przed północą — kotwica = pierwszy odczyt tego dnia w zakresie.
+                day_kwh_anchor[d] = float(pv_kwh)
+                anchor = day_kwh_anchor[d]
+            pv_kwh_moment = max(0.0, float(pv_kwh) - float(anchor))
         row_out: Dict[str, Any] = {
             "time": _fmt_ts(ts),
             "pv_w": state["pv_w"],
@@ -473,10 +492,8 @@ def fetch_history_merged(date_from: str, date_to: str) -> List[Dict[str, Any]]:
             "l2_w": state["l2_w"],
             "l3_w": state["l3_w"],
         }
-        if pv_kwh is not None:
-            row_out["pv_kwh"] = float(pv_kwh)
-        if pv_kwh_day is not None:
-            row_out["pv_kwh_day"] = round(pv_kwh_day, 3)
+        if pv_kwh_moment is not None:
+            row_out["pv_kwh_moment"] = round(pv_kwh_moment, 3)
         out.append(row_out)
     return out
 
