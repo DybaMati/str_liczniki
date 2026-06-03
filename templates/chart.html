@@ -32,6 +32,13 @@
 }
 .chart-btn-cancel.show{display:inline-block}
 .chart-btn-cancel:hover{background:rgba(248,113,113,0.15);border-color:#f87171;color:#fecaca}
+/* Tooltip ECharts — wyraźny opis kWh pod PV */
+.panel-echart-tip .chart-tip-kwh{
+  display:block;margin-top:8px;padding:8px 10px;
+  background:rgba(245,158,11,0.28);border:1px solid #f59e0b;border-radius:6px;
+  color:#fffbeb;font-size:15px;font-weight:650;line-height:1.4;
+}
+.panel-echart-tip .chart-tip-kwh b{color:#fff;font-size:16px;font-weight:800}
 @media (max-width: 480px) {
   .pv-range{flex-direction:column;align-items:stretch}
   .pv-range input[type="date"]{width:100%}
@@ -523,8 +530,7 @@
                     if (p.seriesName === 'PV produkcja') {
                         var pvKwhMoment = pvKwhAtCursor(axisMs);
                         if (pvKwhMoment != null) {
-                            r += '<span style="display:inline-block;width:10px;height:10px;margin-right:4px"></span>';
-                            r += '<span style="color:#fcd34d;font-size:12px">Wyprodukowano (do tego czasu): <b>' + fmtKwhPlain(pvKwhMoment) + '</b></span><br/>';
+                            r += '<div class="chart-tip-kwh">Wyprodukowano (do tego czasu): <b>' + fmtKwhPlain(pvKwhMoment) + '</b></div>';
                         }
                     }
                 });
