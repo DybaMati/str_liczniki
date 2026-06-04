@@ -110,21 +110,6 @@
 
     function pad2(n) { return String(n).padStart(2, '0'); }
 
-    function fmtPlGrouped(n, dec) {
-        if (n == null || Number.isNaN(n)) return null;
-        dec = (dec == null) ? 2 : dec;
-        var neg = n < 0;
-        n = Math.abs(n);
-        var parts = (Math.round(n * Math.pow(10, dec)) / Math.pow(10, dec)).toFixed(dec).split('.');
-        var grouped = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
-        var s = grouped + (dec > 0 ? (',' + (parts[1] || '')) : '');
-        return neg ? ('-' + s) : s;
-    }
-    function fmtKwhPlain(n) {
-        var s = fmtPlGrouped(n, 2);
-        if (s == null) return '—';
-        return s + ' kWh';
-    }
     function fmtKwhOne(n) {
         if (n == null || Number.isNaN(n)) return '—';
         return (Math.round(n * 10) / 10).toFixed(1).replace('.', ',') + ' kWh';
