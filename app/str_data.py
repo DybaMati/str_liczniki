@@ -497,11 +497,11 @@ def fetch_history_merged(date_from: str, date_to: str) -> List[Dict[str, Any]]:
             SELECT `timestamp` AS ts, licznik_id, energia_kwh
             FROM licznik_energia
             WHERE licznik_id IN ({id1}, {id2}, {id3})
-              AND `timestamp` >= :ts_from AND `timestamp` <= :ts_to
+              AND `timestamp` <= :ts_to
             ORDER BY `timestamp` ASC
             """
         ),
-        p,
+        {"ts_to": p["ts_to"]},
     )
 
     state = {

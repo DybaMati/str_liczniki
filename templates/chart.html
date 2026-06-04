@@ -86,6 +86,8 @@
     /** kWh do tooltipa (posort. po ms) — tylko tekst, nie linia wykresu */
     let pvKwhTipSeries = [];
     let useKwhTipSeries = [];
+    /** równolegle do serii Suma (s4) — indeks = dataIndex w tooltipie */
+    let useKwhByIndex = [];
 
     function kwhAtCursor(series, axisMs) {
         if (axisMs == null || !isFinite(axisMs) || !series.length) return null;
@@ -519,6 +521,8 @@
                         }
                     }
                 }
+                var pvKwhTip = kwhAtCursor(pvKwhTipSeries, axisMs);
+                var useKwhTip = kwhAtCursor(useKwhTipSeries, axisMs);
                 params.forEach(function(p) {
                     if (p.value == null) return;
                     var raw = p.value;
@@ -526,19 +530,22 @@
                     if (w == null) return;
                     r += '<div class="chart-tip-row"><span class="tip-dot" style="background:' + p.color + '"></span>';
                     r += p.seriesName + ': <b>' + Math.round(w) + ' W</b></div>';
-                    if (p.seriesName === 'PV produkcja') {
-                        var pvKwhMoment = kwhAtCursor(pvKwhTipSeries, axisMs);
-                        if (pvKwhMoment != null) {
-                            r += '<div class="chart-tip-kwh">Wyprodukowano: <b>' + fmtKwhOne(pvKwhMoment) + '</b></div>';
-                        }
+                    if (p.seriesName === 'PV produkcja' && pvKwhTip != null) {
+                        r += '<div class="chart-tip-kwh">Wyprodukowano: <b>' + fmtKwhOne(pvKwhTip) + '</b></div>';
                     }
                     if (p.seriesName === 'Suma zużycia') {
-                        var useKwhMoment = kwhAtCursor(useKwhTipSeries, axisMs);
-                        if (useKwhMoment != null) {
+                        var useKwhMoment = useKwhTip;
+                        if (useKwhMoment == null && p.dataIndex != null && useKwhByIndex[p.dataIndex] != null) {
+                            useKwhMoment = useKwhByIndex[p.dataIndex];
+                        }
+                        if (useKwhMoment != null && !Number.isNaN(useKwhMoment)) {
                             r += '<div class="chart-tip-use">Zużyto suma: <b>' + fmtKwhOne(useKwhMoment) + '</b></div>';
                         }
                     }
                 });
+                if (useKwhTip != null && r.indexOf('Zużyto suma:') < 0) {
+                    r += '<div class="chart-tip-use">Zużyto suma: <b>' + fmtKwhOne(useKwhTip) + '</b></div>';
+                }
                 return r;
                 }
             },
@@ -590,6 +597,7 @@
         const s0 = [], s1 = [], s2 = [], s3 = [], s4 = [];
         pvKwhTipSeries = [];
         useKwhTipSeries = [];
+        useKwhByIndex = [];
         let prevMs = null;
         let prevTime = null;
         const markAreas = [];
@@ -610,17 +618,23 @@
                 s2.push([ms, null]);
                 s3.push([ms, null]);
                 s4.push([ms, null]);
+                useKwhByIndex.push(null);
             } else {
                 const sum = (p.l1_w || 0) + (p.l2_w || 0) + (p.l3_w || 0);
                 var pvKwhMoment = (p.pv_kwh_moment != null && !Number.isNaN(p.pv_kwh_moment)) ? p.pv_kwh_moment : null;
+                var useKwhMoment = (p.use_kwh_moment != null && !Number.isNaN(p.use_kwh_moment)) ? p.use_kwh_moment : null;
                 s0.push([ms, Math.round(p.pv_w || 0)]);
                 if (ms != null && pvKwhMoment != null) {
                     pvKwhTipSeries.push({ ms: ms, kwh: pvKwhMoment });
+                }
+                if (ms != null && useKwhMoment != null) {
+                    useKwhTipSeries.push({ ms: ms, kwh: useKwhMoment });
                 }
                 s1.push([ms, Math.round(p.l1_w || 0)]);
                 s2.push([ms, Math.round(p.l2_w || 0)]);
                 s3.push([ms, Math.round(p.l3_w || 0)]);
                 s4.push([ms, Math.round(sum)]);
+                useKwhByIndex.push(useKwhMoment);
             }
 
             prevMs = ms;
