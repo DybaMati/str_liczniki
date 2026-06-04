@@ -32,13 +32,19 @@
 }
 .chart-btn-cancel.show{display:inline-block}
 .chart-btn-cancel:hover{background:rgba(248,113,113,0.15);border-color:#f87171;color:#fecaca}
-/* Tooltip ECharts — wyraźny opis kWh pod PV */
-.panel-echart-tip .chart-tip-kwh{
-  display:block;margin-top:8px;padding:8px 10px;
-  background:rgba(245,158,11,0.28);border:1px solid #f59e0b;border-radius:6px;
-  color:#fffbeb;font-size:15px;font-weight:650;line-height:1.4;
+/* Tooltip wykresu — ciemny, mały, nie zasłania wykresu */
+.panel-echart-tip.chart-power-tip{
+  padding:5px 7px!important;font-size:11px!important;line-height:1.3!important;
+  color:#e5e7eb!important;background:rgba(10,10,10,0.97)!important;
+  border:1px solid #4b5563!important;border-radius:5px!important;
+  box-shadow:0 2px 10px rgba(0,0,0,0.55)!important;max-width:190px;
 }
-.panel-echart-tip .chart-tip-kwh b{color:#fff;font-size:16px;font-weight:800}
+.chart-tip-time{font-size:10px;color:#9ca3af;margin:0 0 4px;font-weight:600}
+.chart-tip-row{margin:1px 0;white-space:nowrap}
+.chart-tip-row .tip-dot{display:inline-block;width:7px;height:7px;margin-right:5px;border-radius:50%;vertical-align:middle}
+.chart-tip-kwh{margin:0 0 4px 12px;padding:0;font-size:10px;color:#d4d4d8;line-height:1.25}
+.chart-tip-kwh b{color:#fbbf24;font-weight:700}
+.chart-tip-gap{font-size:10px;color:#94a3b8;margin:2px 0 4px;line-height:1.3}
 @media (max-width: 480px) {
   .pv-range{flex-direction:column;align-items:stretch}
   .pv-range input[type="date"]{width:100%}
@@ -118,6 +124,10 @@
         var s = fmtPlGrouped(n, 2);
         if (s == null) return '—';
         return s + ' kWh';
+    }
+    function fmtKwhOne(n) {
+        if (n == null || Number.isNaN(n)) return '—';
+        return (Math.round(n * 10) / 10).toFixed(1).replace('.', ',') + ' kWh';
     }
 
     function fmtTimeMs(ms) {
@@ -499,21 +509,31 @@
             grid: { left: 10, right: 10, top: 45, bottom: 108, containLabel: true },
             tooltip: {
                 trigger: 'axis',
-                axisPointer: { type: 'cross' },
+                axisPointer: { type: 'line', lineStyle: { color: '#6b7280', width: 1 } },
                 confine: true,
                 appendToBody: false,
-                className: 'panel-echart-tip',
-                formatter: function(params) { 
-                let r =
-'<b>' + params[0].axisValueLabel + '</b><br/>';
-                var axisVal = params && params[0] ? params[0].axisValue : null;
+                padding: [5, 7],
+                className: 'panel-echart-tip chart-power-tip',
+                position: function (pos, params, dom, rect, size) {
+                    var x = pos[0] + 14;
+                    var y = pos[1] - size.contentSize[1] - 12;
+                    if (y < 8) y = pos[1] + 14;
+                    if (x + size.contentSize[0] > rect.width - 4) {
+                        x = pos[0] - size.contentSize[0] - 14;
+                    }
+                    return [x, y];
+                },
+                formatter: function(params) {
+                if (!params || !params.length) return '';
+                var axisVal = params[0].axisValue;
                 var axisMs = (typeof axisVal === 'number') ? axisVal : parseTimeMs(axisVal);
+                var r = '<div class="chart-tip-time">' + params[0].axisValueLabel + '</div>';
                 if (axisMs != null && gapIntervals && gapIntervals.length) {
                     for (var gi = 0; gi < gapIntervals.length; gi++) {
                         var g = gapIntervals[gi];
                         if (axisMs >= g.startMs && axisMs <= g.endMs) {
                             var mins = Math.max(0, Math.round((g.endMs - g.startMs) / 60000));
-                            r += '<div style="margin-top:6px;color:#94a3b8;font-size:12px;line-height:1.4">Brak danych od <b>' + fmtTimeMs(g.startMs) + '</b> do <b>' + fmtTimeMs(g.endMs) + '</b> (' + mins + ' min)</div>';
+                            r += '<div class="chart-tip-gap">Luka ' + mins + ' min</div>';
                             break;
                         }
                     }
@@ -521,20 +541,20 @@
                 params.forEach(function(p) {
                     if (p.value == null) return;
                     var raw = p.value;
-                    var w = null;
-                    if (Array.isArray(raw)) w = raw[1];
-                    else w = raw;
+                    var w = Array.isArray(raw) ? raw[1] : raw;
                     if (w == null) return;
-                    r += '<span style="display:inline-block;width:10px;height:10px;background:' + p.color + ';margin-right:4px;border-radius:50%"></span>';
-                    r += p.seriesName + ': <b>' + Math.round(w) + ' W</b><br/>';
+                    r += '<div class="chart-tip-row"><span class="tip-dot" style="background:' + p.color + '"></span>';
+                    r += p.seriesName + ': <b>' + Math.round(w) + ' W</b></div>';
                     if (p.seriesName === 'PV produkcja') {
                         var pvKwhMoment = pvKwhAtCursor(axisMs);
                         if (pvKwhMoment != null) {
-                            r += '<div class="chart-tip-kwh">Wyprodukowano (do tego czasu): <b>' + fmtKwhPlain(pvKwhMoment) + '</b></div>';
+                            r += '<div class="chart-tip-kwh">Wyprodukowano: <b>' + fmtKwhOne(pvKwhMoment) + '</b></div>';
                         }
                     }
                 });
-                return r; } },
+                return r;
+                }
+            },
             legend: {
                 data: ['PV produkcja', 'Tomek L1', 'Lonia L2', 'Henia L3', 'Suma zużycia'],
                 icon: 'rect',
