@@ -494,20 +494,13 @@
             grid: { left: 10, right: 10, top: 45, bottom: 108, containLabel: true },
             tooltip: {
                 trigger: 'axis',
-                axisPointer: { type: 'line', lineStyle: { color: '#6b7280', width: 1 } },
+                triggerOn: 'mousemove',
+                axisPointer: { type: 'line', snap: true, lineStyle: { color: '#6b7280', width: 1 } },
                 confine: true,
                 appendToBody: false,
                 padding: [5, 7],
+                transitionDuration: 0,
                 className: 'panel-echart-tip chart-power-tip',
-                position: function (pos, params, dom, rect, size) {
-                    var x = pos[0] + 14;
-                    var y = pos[1] - size.contentSize[1] - 12;
-                    if (y < 8) y = pos[1] + 14;
-                    if (x + size.contentSize[0] > rect.width - 4) {
-                        x = pos[0] - size.contentSize[0] - 14;
-                    }
-                    return [x, y];
-                },
                 formatter: function(params) {
                 if (!params || !params.length) return '';
                 var axisVal = params[0].axisValue;
