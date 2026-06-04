@@ -310,6 +310,42 @@ def _last_before(table: str, ts_col: str, val_col: str, before_ts: str) -> Optio
     return float(row["v"])
 
 
+def _meter_kwh_at_or_before(licznik_id: int, until_ts: str) -> Optional[float]:
+    row = fetch_one(
+        text(
+            """
+            SELECT energia_kwh AS v
+            FROM licznik_energia
+            WHERE licznik_id = :lid AND `timestamp` <= :t
+            ORDER BY `timestamp` DESC
+            LIMIT 1
+            """
+        ),
+        {"lid": licznik_id, "t": until_ts},
+    )
+    if not row or row.get("v") is None:
+        return None
+    return float(row["v"])
+
+
+def _last_meter_kwh_before(licznik_id: int, before_ts: str) -> Optional[float]:
+    row = fetch_one(
+        text(
+            """
+            SELECT energia_kwh AS v
+            FROM licznik_energia
+            WHERE licznik_id = :lid AND `timestamp` < :t
+            ORDER BY `timestamp` DESC
+            LIMIT 1
+            """
+        ),
+        {"lid": licznik_id, "t": before_ts},
+    )
+    if not row or row.get("v") is None:
+        return None
+    return float(row["v"])
+
+
 def _last_meter_before(licznik_id: int, before_ts: str) -> Optional[float]:
     row = fetch_one(
         text(
@@ -410,6 +446,9 @@ def fetch_history_merged(date_from: str, date_to: str) -> List[Dict[str, Any]]:
     init_l1 = _last_meter_before(id1, ts_start)
     init_l2 = _last_meter_before(id2, ts_start)
     init_l3 = _last_meter_before(id3, ts_start)
+    init_l1_kwh = _last_meter_kwh_before(id1, ts_start)
+    init_l2_kwh = _last_meter_kwh_before(id2, ts_start)
+    init_l3_kwh = _last_meter_kwh_before(id3, ts_start)
 
     kwh_rows = fetch_all(
         text(
@@ -422,6 +461,18 @@ def fetch_history_merged(date_from: str, date_to: str) -> List[Dict[str, Any]]:
         ),
         p,
     )
+    energia_rows = fetch_all(
+        text(
+            f"""
+            SELECT `timestamp` AS ts, licznik_id, energia_kwh
+            FROM licznik_energia
+            WHERE licznik_id IN ({id1}, {id2}, {id3})
+              AND `timestamp` >= :ts_from AND `timestamp` <= :ts_to
+            ORDER BY `timestamp` ASC
+            """
+        ),
+        p,
+    )
 
     state = {
         "pv_w": init_pv if init_pv is not None else 0.0,
@@ -429,6 +480,9 @@ def fetch_history_merged(date_from: str, date_to: str) -> List[Dict[str, Any]]:
         "l1_w": init_l1 if init_l1 is not None else 0.0,
         "l2_w": init_l2 if init_l2 is not None else 0.0,
         "l3_w": init_l3 if init_l3 is not None else 0.0,
+        "l1_kwh": init_l1_kwh,
+        "l2_kwh": init_l2_kwh,
+        "l3_kwh": init_l3_kwh,
     }
 
     events: Dict[datetime, Dict[str, float]] = {}
@@ -456,8 +510,23 @@ def fetch_history_merged(date_from: str, date_to: str) -> List[Dict[str, Any]]:
             events[ts]["l2_w"] = v
         elif lid == id3:
             events[ts]["l3_w"] = v
+    for r in energia_rows:
+        ts = _to_dt(r["ts"])
+        if ts not in events:
+            events[ts] = {}
+        lid = int(r["licznik_id"])
+        if r.get("energia_kwh") is None:
+            continue
+        v = float(r["energia_kwh"])
+        if lid == id1:
+            events[ts]["l1_kwh"] = v
+        elif lid == id2:
+            events[ts]["l2_kwh"] = v
+        elif lid == id3:
+            events[ts]["l3_kwh"] = v
 
-    day_kwh_anchor: Dict[date, Optional[float]] = {}
+    day_pv_anchor: Dict[date, Optional[float]] = {}
+    day_use_meter_anchor: Dict[date, Dict[int, Optional[float]]] = {}
     out: List[Dict[str, Any]] = []
     for ts in sorted(events.keys()):
         ev = events[ts]
@@ -471,20 +540,47 @@ def fetch_history_merged(date_from: str, date_to: str) -> List[Dict[str, Any]]:
             state["l2_w"] = ev["l2_w"]
         if "l3_w" in ev:
             state["l3_w"] = ev["l3_w"]
+        if "l1_kwh" in ev:
+            state["l1_kwh"] = ev["l1_kwh"]
+        if "l2_kwh" in ev:
+            state["l2_kwh"] = ev["l2_kwh"]
+        if "l3_kwh" in ev:
+            state["l3_kwh"] = ev["l3_kwh"]
+        d = ts.date()
         pv_kwh = state.get("pv_kwh")
         pv_kwh_moment = None
         if pv_kwh is not None:
-            d = ts.date()
-            if d not in day_kwh_anchor:
+            if d not in day_pv_anchor:
                 midnight, _ = _day_midnight_bounds(d.isoformat())
-                # Stan licznika na początku doby (ostatni odczyt <= północ).
-                day_kwh_anchor[d] = _pv_kwh_at_or_before(midnight)
-            anchor = day_kwh_anchor[d]
+                day_pv_anchor[d] = _pv_kwh_at_or_before(midnight)
+            anchor = day_pv_anchor[d]
             if anchor is None:
-                # Brak odczytu przed północą — kotwica = pierwszy odczyt tego dnia w zakresie.
-                day_kwh_anchor[d] = float(pv_kwh)
-                anchor = day_kwh_anchor[d]
+                day_pv_anchor[d] = float(pv_kwh)
+                anchor = day_pv_anchor[d]
             pv_kwh_moment = max(0.0, float(pv_kwh) - float(anchor))
+        use_sum_moment = None
+        use_total = 0.0
+        use_any = False
+        if d not in day_use_meter_anchor:
+            midnight, _ = _day_midnight_bounds(d.isoformat())
+            day_use_meter_anchor[d] = {
+                id1: _meter_kwh_at_or_before(id1, midnight),
+                id2: _meter_kwh_at_or_before(id2, midnight),
+                id3: _meter_kwh_at_or_before(id3, midnight),
+            }
+        for lid, key in ((id1, "l1_kwh"), (id2, "l2_kwh"), (id3, "l3_kwh")):
+            cur = state.get(key)
+            if cur is None:
+                continue
+            anchors = day_use_meter_anchor[d]
+            anchor = anchors.get(lid)
+            if anchor is None:
+                anchors[lid] = float(cur)
+                anchor = anchors[lid]
+            use_total += max(0.0, float(cur) - float(anchor))
+            use_any = True
+        if use_any:
+            use_sum_moment = use_total
         row_out: Dict[str, Any] = {
             "time": _fmt_ts(ts),
             "pv_w": state["pv_w"],
@@ -494,6 +590,8 @@ def fetch_history_merged(date_from: str, date_to: str) -> List[Dict[str, Any]]:
         }
         if pv_kwh_moment is not None:
             row_out["pv_kwh_moment"] = round(pv_kwh_moment, 3)
+        if use_sum_moment is not None:
+            row_out["use_kwh_moment"] = round(use_sum_moment, 3)
         out.append(row_out)
     return out
 
