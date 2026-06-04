@@ -211,6 +211,10 @@ function fmtKwhDelta(n){
   if(s==null) return '-';
   return s+' kWh';
 }
+function fmtKwhOne(n){
+  if(n==null||Number.isNaN(n)) return '—';
+  return (Math.round(n*10)/10).toFixed(1).replace('.',',')+' kWh';
+}
 /** Zwykly zapis kWh (bez kwadracikow) — pod PV */
 function fmtKwhPlain(n){
   var s=fmtPlGrouped(n,2);
@@ -263,14 +267,16 @@ function ensureEcharts(){
     document.head.appendChild(s);
   });
 }
-function drawSparkline(container, series, yMax){
+function drawSparkline(container, series, yMax, kwhTipLabel){
   if(!container || !window.echarts) return;
   var chart = echarts.getInstanceByDom(container) || echarts.init(container);
   var src = pickSparkPoints(series || [], MAX_SPARK_POINTS);
   const GAP_MS = 10 * 60 * 1000;
+  var kwhLbl = kwhTipLabel || 'Zużyto';
 
   var dataPairs = [];
   var idxToTs = [];
+  var idxToKwh = [];
   var markAreas = [];
   var gapIntervals = [];
 
@@ -286,9 +292,12 @@ function drawSparkline(container, series, yMax){
       gapIntervals.push({ startMs: prevMs, endMs: ms });
       dataPairs.push([ms, null]);
       idxToTs.push(p.ts);
+      idxToKwh.push(null);
     } else {
       dataPairs.push([ms, Math.round(p.w || 0)]);
       idxToTs.push(p.ts);
+      var km = (p.kwh_moment != null && !Number.isNaN(p.kwh_moment)) ? p.kwh_moment : null;
+      idxToKwh.push(km);
     }
     prevMs = ms;
   }
@@ -348,8 +357,13 @@ function drawSparkline(container, series, yMax){
 
         var mins = gap ? Math.max(0, Math.round((gap.endMs - gap.startMs)/60000)) : null;
         var gapLine = gap ? ('<div style="text-align:center;color:#94a3b8;font-size:12px;margin-top:4px;line-height:1.3">Nie było danych: '+mins+' min</div>') : '';
+        var kwhVal = (i >= 0 && idxToKwh[i] != null) ? idxToKwh[i] : null;
+        var kwhLine = '';
+        if (!gap && kwhVal != null) {
+          kwhLine = '<div style="text-align:center;font-size:11px;color:#d4d4d8;margin-top:4px;line-height:1.25">'+kwhLbl+': <b style="color:#f87171">'+fmtKwhOne(kwhVal)+'</b></div>';
+        }
 
-        return '<div style="text-align:center;line-height:1.3">'+tline+'</div>'+gapLine+'<div style="text-align:center;font-weight:600;margin-top:3px;font-variant-numeric:tabular-nums">'+v+' W</div>';
+        return '<div style="text-align:center;line-height:1.3">'+tline+'</div>'+gapLine+'<div style="text-align:center;font-weight:600;margin-top:3px;font-variant-numeric:tabular-nums">'+v+' W</div>'+kwhLine;
       }
     },
     xAxis: { type: 'time', axisLabel: {color:'#8f8f8f', fontSize: 10, interval: 'auto'}, boundaryGap: false },
@@ -437,7 +451,7 @@ function updateMeterCard(el, c, yMax) {
   if (ktEl) { ktEl.textContent = ktTxt; clearCopyable(ktEl); }
 
   var spark = el.querySelector('.spark');
-  drawSparkline(spark, c.wat_series || [], yMax);
+  drawSparkline(spark, c.wat_series || [], yMax, 'Zużyto');
 }
 
 function renderMeters(cards, yMax) {

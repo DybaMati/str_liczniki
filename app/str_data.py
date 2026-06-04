@@ -56,7 +56,7 @@ def _range_boundaries(date_from: str, date_to: str) -> Dict[str, str]:
 def _fetch_meter_watts_series(licznik_id: int) -> List[Dict[str, Any]]:
     # hours jako int w SQL — MySQL/PyMySQL nie obsługuje bind w INTERVAL :hours HOUR
     hours = max(1, min(int(get_settings().live_sparkline_hours), 168))
-    rows = fetch_all(
+    watt_rows = fetch_all(
         text(
             f"""
             SELECT `timestamp` AS ts, moc_w AS w
@@ -68,14 +68,44 @@ def _fetch_meter_watts_series(licznik_id: int) -> List[Dict[str, Any]]:
         ),
         {"lid": licznik_id},
     )
+    energia_rows = fetch_all(
+        text(
+            f"""
+            SELECT `timestamp` AS ts, energia_kwh
+            FROM licznik_energia
+            WHERE licznik_id = :lid
+              AND `timestamp` >= DATE_SUB(NOW(), INTERVAL {hours} HOUR)
+            ORDER BY `timestamp` ASC
+            """
+        ),
+        {"lid": licznik_id},
+    )
+    midnight, _ = _day_midnight_bounds(date.today().isoformat())
+    day_anchor = _meter_kwh_at_or_before(licznik_id, midnight)
+    e_list: List[Tuple[datetime, float]] = []
+    for r in energia_rows:
+        if r.get("energia_kwh") is not None:
+            e_list.append((_to_dt(r["ts"]), float(r["energia_kwh"])))
+    ei = 0
+    last_kwh: Optional[float] = None
+    if watt_rows:
+        last_kwh = _last_meter_kwh_before(licznik_id, _fmt_ts(watt_rows[0]["ts"]))
     out: List[Dict[str, Any]] = []
-    for r in rows:
-        out.append(
-            {
-                "ts": _fmt_ts(r.get("ts")),
-                "w": float(r.get("w") or 0.0),
-            }
-        )
+    for r in watt_rows:
+        ts = _to_dt(r["ts"])
+        while ei < len(e_list) and e_list[ei][0] <= ts:
+            last_kwh = e_list[ei][1]
+            ei += 1
+        row: Dict[str, Any] = {
+            "ts": _fmt_ts(r.get("ts")),
+            "w": float(r.get("w") or 0.0),
+        }
+        if last_kwh is not None:
+            anchor = day_anchor
+            if anchor is None:
+                anchor = last_kwh
+            row["kwh_moment"] = round(max(0.0, float(last_kwh) - float(anchor)), 3)
+        out.append(row)
     return out
 
 
@@ -492,12 +522,6 @@ def fetch_history_merged(date_from: str, date_to: str) -> List[Dict[str, Any]]:
             events[ts] = {}
         if r.get("pv_w") is not None:
             events[ts]["pv_w"] = float(r["pv_w"])
-    for r in kwh_rows:
-        ts = _to_dt(r["ts"])
-        if ts not in events:
-            events[ts] = {}
-        if r.get("pv_kwh") is not None:
-            events[ts]["pv_kwh"] = float(r["pv_kwh"])
     for r in meter_rows:
         ts = _to_dt(r["ts"])
         if ts not in events:
@@ -510,42 +534,45 @@ def fetch_history_merged(date_from: str, date_to: str) -> List[Dict[str, Any]]:
             events[ts]["l2_w"] = v
         elif lid == id3:
             events[ts]["l3_w"] = v
+    pv_kwh_events: List[Tuple[datetime, float]] = []
+    for r in kwh_rows:
+        if r.get("pv_kwh") is not None:
+            pv_kwh_events.append((_to_dt(r["ts"]), float(r["pv_kwh"])))
+    e_by_meter: Dict[int, List[Tuple[datetime, float]]] = {id1: [], id2: [], id3: []}
     for r in energia_rows:
-        ts = _to_dt(r["ts"])
-        if ts not in events:
-            events[ts] = {}
-        lid = int(r["licznik_id"])
         if r.get("energia_kwh") is None:
             continue
-        v = float(r["energia_kwh"])
-        if lid == id1:
-            events[ts]["l1_kwh"] = v
-        elif lid == id2:
-            events[ts]["l2_kwh"] = v
-        elif lid == id3:
-            events[ts]["l3_kwh"] = v
+        lid = int(r["licznik_id"])
+        if lid in e_by_meter:
+            e_by_meter[lid].append((_to_dt(r["ts"]), float(r["energia_kwh"])))
 
     day_pv_anchor: Dict[date, Optional[float]] = {}
     day_use_meter_anchor: Dict[date, Dict[int, Optional[float]]] = {}
+    p_pv = 0
+    p_e1 = p_e2 = p_e3 = 0
     out: List[Dict[str, Any]] = []
     for ts in sorted(events.keys()):
         ev = events[ts]
         if "pv_w" in ev:
             state["pv_w"] = ev["pv_w"]
-        if "pv_kwh" in ev:
-            state["pv_kwh"] = ev["pv_kwh"]
+        while p_pv < len(pv_kwh_events) and pv_kwh_events[p_pv][0] <= ts:
+            state["pv_kwh"] = pv_kwh_events[p_pv][1]
+            p_pv += 1
         if "l1_w" in ev:
             state["l1_w"] = ev["l1_w"]
         if "l2_w" in ev:
             state["l2_w"] = ev["l2_w"]
         if "l3_w" in ev:
             state["l3_w"] = ev["l3_w"]
-        if "l1_kwh" in ev:
-            state["l1_kwh"] = ev["l1_kwh"]
-        if "l2_kwh" in ev:
-            state["l2_kwh"] = ev["l2_kwh"]
-        if "l3_kwh" in ev:
-            state["l3_kwh"] = ev["l3_kwh"]
+        while p_e1 < len(e_by_meter[id1]) and e_by_meter[id1][p_e1][0] <= ts:
+            state["l1_kwh"] = e_by_meter[id1][p_e1][1]
+            p_e1 += 1
+        while p_e2 < len(e_by_meter[id2]) and e_by_meter[id2][p_e2][0] <= ts:
+            state["l2_kwh"] = e_by_meter[id2][p_e2][1]
+            p_e2 += 1
+        while p_e3 < len(e_by_meter[id3]) and e_by_meter[id3][p_e3][0] <= ts:
+            state["l3_kwh"] = e_by_meter[id3][p_e3][1]
+            p_e3 += 1
         d = ts.date()
         pv_kwh = state.get("pv_kwh")
         pv_kwh_moment = None
