@@ -300,9 +300,9 @@ def compute_split(
     exp_stala = round(stala * ratio_pay, 2)
     exp_zmienna = round(zmienna * ratio_pay, 2)
     exp_vat = (
-        round(kwota_vat_fv * ratio_pay, 2)
-        if kwota_vat_fv > 0
-        else round((exp_stala + exp_zmienna) * vat_pct / 100, 2)
+        round((do_zaplaty_f or 0) - exp_stala - exp_zmienna, 2)
+        if do_zaplaty_f is not None
+        else round(kwota_vat_fv * ratio_pay, 2)
     )
     exp_razem = round(do_zaplaty_f, 2) if do_zaplaty_f is not None else None
     tol = 0.03
