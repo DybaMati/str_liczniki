@@ -41,6 +41,10 @@
 .fv-cmp-item{background:#1c1c1c;border:1px solid #333;border-radius:8px;padding:10px 12px}
 .fv-cmp-item .lbl{font-size:11px;color:#9ca3af;text-transform:uppercase;font-weight:600}
 .fv-cmp-item .val{font-size:17px;font-weight:700;margin-top:4px;font-variant-numeric:tabular-nums}
+.fv-cmp-tbl{margin:14px 0 8px}
+.fv-cmp-tbl .diff-pos{color:#6ee7b7}
+.fv-cmp-tbl .diff-neg{color:#f87171}
+.fv-cmp-tbl .diff-neu{color:#d4d4d4}
 .fv-uagi{list-style:disc;margin:8px 0 0 18px;color:#d4d4d4;font-size:14px;line-height:1.45}
 .fv-uagi li{margin:4px 0}
 .fv-odczyt-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px;margin:14px 0}
@@ -173,9 +177,30 @@
     return html;
   }
 
+  function fmtDiff(n, dec) {
+    if (n == null || Number.isNaN(n)) return '—';
+    dec = (dec == null) ? 1 : dec;
+    var s = (n > 0 ? '+' : '') + Number(n).toFixed(dec).replace('.', ',');
+    var cls = n > 0.5 ? 'diff-pos' : (n < -0.5 ? 'diff-neg' : 'diff-neu');
+    return '<span class="' + cls + '">' + s + ' kWh</span>';
+  }
+
   function renderPorownanie(cmp, inv) {
     if (!cmp) return '';
-    var html = '<div class="fv-panel"><h3>Porównanie: FV vs liczniki wewnętrzne vs PV</h3>';
+    var html = '<div class="fv-panel"><h3>Porównanie: nasza baza vs Energa (FV)</h3>';
+    html += '<p class="fv-note">Liczniki L1–L3 = zużycie w domu. Energa „rozliczone” (saldo+) to kWh po bilansie godzinowym prosumenta — nie to samo co suma wewnętrznych liczników.</p>';
+    html += '<div class="wrap-fv-tbl fv-cmp-tbl"><table class="fv-tbl"><thead><tr>';
+    html += '<th></th><th class="num">Nasza baza</th><th class="num">Energa (FV)</th><th class="num">Różnica</th></tr></thead><tbody>';
+    html += '<tr><td><strong>Zużycie</strong><br><span style="font-size:12px;color:#9ca3af">3 liczniki vs saldo+ / pobranie</span></td>';
+    html += '<td class="num">' + plKwh(cmp.liczniki_wewn_suma_kwh, 1) + '</td>';
+    html += '<td class="num">' + (cmp.fv_kwh_rozliczone != null ? cmp.fv_kwh_rozliczone + ' kWh (rozlicz.)' : '—');
+    if (cmp.fv_kwh_pobranie_licznik != null) html += '<br><span style="font-size:12px;color:#9ca3af">' + plKwh(cmp.fv_kwh_pobranie_licznik, 1) + ' pobr.</span>';
+    html += '</td><td class="num">' + fmtDiff(cmp.roznica_liczniki_minus_fv_rozliczone, 1) + '</td></tr>';
+    html += '<tr><td><strong>Produkcja PV</strong><br><span style="font-size:12px;color:#9ca3af">inwerter vs wprowadzenie do sieci</span></td>';
+    html += '<td class="num">' + plKwh(cmp.pv_produkcja_kwh, 1) + '</td>';
+    html += '<td class="num">' + plKwh(cmp.fv_kwh_wprowadzenie_licznik, 1) + '</td>';
+    html += '<td class="num">' + fmtDiff(cmp.roznica_pv_minus_wprowadzenie_fv, 1) + '</td></tr>';
+    html += '</tbody></table></div>';
     html += '<div class="fv-cmp-grid">';
     html += '<div class="fv-cmp-item"><div class="lbl">Pobrano (odczyt licznika)</div><div class="val">' + plKwh(cmp.fv_kwh_pobranie_licznik, 3) + '</div></div>';
     html += '<div class="fv-cmp-item"><div class="lbl">Rozliczone (saldo +)</div><div class="val">' + (cmp.fv_kwh_rozliczone != null ? cmp.fv_kwh_rozliczone + ' kWh' : '—') + '</div></div>';
