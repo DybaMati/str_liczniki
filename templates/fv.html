@@ -342,11 +342,15 @@
       html += ' · Suma kWh liczników: <strong>' + plNum(sp.kwh_liczniki_suma, 1) + '</strong>';
       if (sp.kwh_fv != null) html += ' · kWh na FV: <strong>' + sp.kwh_fv + '</strong>';
       html += '</p>';
+      if (sp.kwh_fv != null && sp.kwh_liczniki_suma != null && Math.abs(sp.kwh_liczniki_suma - sp.kwh_fv) > 5) {
+        html += '<p class="fv-warn">Suma 3 liczników (' + plNum(sp.kwh_liczniki_suma, 1) + ' kWh) ≠ kWh rozliczone na FV (' + sp.kwh_fv + ' kWh). ';
+        html += 'Energa liczy po bilansie godzinowym prosumenta — podział opłat wg liczników wewnętrznych to <strong>szacunek „kto ile zużył w domu”</strong>, nie kopia pozycji z FV.</p>';
+      }
       if (sp.do_zaplaty_total != null) {
         html += '<p class="fv-note">Kwota do zapłaty na FV: <strong style="color:#86efac">' + plMoney(sp.do_zaplaty_total) + '</strong>';
         html += ' (cała FV brutto <strong>' + plMoney(sp.razem_brutto_fv) + '</strong>';
         if (pod.depozyt_brutto) html += ' minus depozyt <strong>' + plMoney(pod.depozyt_brutto) + '</strong>';
-        html += ')</p>';
+        html += '). Kolumna <strong>Do zapłaty</strong> = ten przelew podzielony wg udziału kWh; <strong>Razem brutto (FV)</strong> = pełna wartość faktury przed depozytem.</p>';
       } else {
         html += '<p class="fv-note">Kolumna „Razem brutto” to pełna wartość FV — nie kwota do przelewu po depozycie.</p>';
       }
