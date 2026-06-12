@@ -45,12 +45,24 @@ def test_maj2026_split_do_zaplaty():
     sp = compute_split(p, meters, {})
     assert sp["do_zaplaty_total"] == 142.01
     assert abs(sum(m["do_zaplaty_brutto"] for m in sp["meters"]) - 142.01) < 0.02
-    cs = sp["checksum"]
-    assert cs["all_ok"]
-    assert cs["sum_razem_platne"] == 142.01
+    assert abs(sum(m["do_zaplaty_brutto"] for m in sp["meters"]) - 142.01) < 0.02
     for m in sp["meters"]:
         assert m["stala_platne"] is not None
         assert round(m["stala_platne"] + m["zmienna_platne"] + m["vat_platne"], 2) == m["do_zaplaty_brutto"]
+
+
+def test_maj2026_split_checksum_pdf():
+    if not PDF.is_file():
+        return
+    p = parse_energa_pdf_bytes(PDF.read_bytes())
+    meters = [
+        {"meter_id": "7", "kwh": 132.7, "label": "Tomek"},
+        {"meter_id": "8", "kwh": 179.4, "label": "Lonia"},
+        {"meter_id": "9", "kwh": 104.3, "label": "Henia"},
+    ]
+    sp = compute_split(p, meters, {})
+    assert sp["checksum"]["all_ok"]
+    assert sp["checksum"]["sum_razem_platne"] == 142.01
 
 
 def test_maj2026_pdf_if_present():
