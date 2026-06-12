@@ -232,7 +232,8 @@ def compute_split(
     do_zaplaty_total = pod.get("do_zaplaty_brutto")
     do_zaplaty_f = float(do_zaplaty_total) if do_zaplaty_total is not None else None
     rows: List[Dict[str, Any]] = []
-    for m in meters:
+    do_zaplaty_assigned = 0.0
+    for mi, m in enumerate(meters):
         mid = str(m.get("meter_id", ""))
         kwh = m.get("kwh")
         kwh_f = float(kwh) if kwh is not None else 0.0
@@ -248,9 +249,13 @@ def compute_split(
         razem_netto = round(stala_part + zmienna_part, 2)
         vat_pct = int(pod.get("vat_pct") or 23)
         razem_brutto = round(razem_netto * (1 + vat_pct / 100), 2)
-        do_zaplaty_part = (
-            round(do_zaplaty_f * share, 2) if do_zaplaty_f is not None else None
-        )
+        do_zaplaty_part: Optional[float] = None
+        if do_zaplaty_f is not None:
+            if mi == len(meters) - 1:
+                do_zaplaty_part = round(do_zaplaty_f - do_zaplaty_assigned, 2)
+            else:
+                do_zaplaty_part = round(do_zaplaty_f * share, 2)
+                do_zaplaty_assigned += do_zaplaty_part
 
         rows.append(
             {

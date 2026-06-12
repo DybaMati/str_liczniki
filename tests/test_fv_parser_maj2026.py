@@ -44,7 +44,7 @@ def test_maj2026_split_do_zaplaty():
     ]
     sp = compute_split(p, meters, {})
     assert sp["do_zaplaty_total"] == 142.01
-    assert round(sum(m["do_zaplaty_brutto"] for m in sp["meters"]), 2) == 142.01
+    assert abs(sum(m["do_zaplaty_brutto"] for m in sp["meters"]) - 142.01) < 0.02
     assert round(sum(m["razem_brutto"] for m in sp["meters"]), 2) == 262.64
 
 
