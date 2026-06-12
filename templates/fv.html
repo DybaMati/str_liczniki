@@ -64,6 +64,11 @@
 .fv-tbl .num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap;font-size:15px}
 .fv-tbl tr.stala td{background:rgba(251,191,36,0.08)}
 .fv-tbl tr.zmienna td{background:rgba(96,165,250,0.08)}
+.fv-tbl tr.sum-row td{font-weight:700;background:rgba(255,255,255,0.06);border-top:2px solid #525252}
+.fv-tbl tr.sum-row.ok td{border-top-color:#34d399}
+.fv-tbl tr.sum-row.bad td{border-top-color:#f87171}
+.fv-check-ok{color:#6ee7b7;font-weight:600}
+.fv-check-bad{color:#f87171;font-weight:600}
 .fv-note{font-size:14px;color:#a3a3a3;margin:10px 0 0;line-height:1.45}
 .fv-warn{color:#fcd34d;font-size:14px;margin:10px 0}
 .fv-err{color:#f87171;font-size:14px}
@@ -348,24 +353,46 @@
       }
       if (sp.do_zaplaty_total != null) {
         html += '<p class="fv-note">Kwota do zapłaty na FV: <strong style="color:#86efac">' + plMoney(sp.do_zaplaty_total) + '</strong>';
-        html += ' (cała FV brutto <strong>' + plMoney(sp.razem_brutto_fv) + '</strong>';
-        if (pod.depozyt_brutto) html += ' minus depozyt <strong>' + plMoney(pod.depozyt_brutto) + '</strong>';
-        html += '). Kolumna <strong>Do zapłaty</strong> = ten przelew podzielony wg udziału kWh; <strong>Razem brutto (FV)</strong> = pełna wartość faktury przed depozytem.</p>';
-      } else {
-        html += '<p class="fv-note">Kolumna „Razem brutto” to pełna wartość FV — nie kwota do przelewu po depozycie.</p>';
+        if (sp.razem_brutto_fv != null) html += ' (z FV brutto <strong>' + plMoney(sp.razem_brutto_fv) + '</strong>';
+        if (pod.depozyt_brutto) html += ' po depozycie <strong>' + plMoney(pod.depozyt_brutto) + '</strong>';
+        html += '). Tabela poniżej — tylko kwoty <strong>do przelewu</strong>, wg udziału kWh.</p>';
       }
-      html += '<div class="wrap-fv-tbl"><table class="fv-tbl"><thead><tr><th>Licznik</th><th class="num">kWh</th><th class="num">Udział</th><th class="num">Stałe netto</th><th class="num">Zmienne netto</th><th class="num">Razem netto</th><th class="num">Razem brutto (FV)</th><th class="num">Do zapłaty</th></tr></thead><tbody>';
+      html += '<div class="wrap-fv-tbl"><table class="fv-tbl"><thead><tr><th>Licznik</th><th class="num">kWh</th><th class="num">Udział</th><th class="num">Stałe netto</th><th class="num">Zmienne netto</th><th class="num">VAT</th><th class="num">Razem (do zapłaty)</th></tr></thead><tbody>';
       sp.meters.forEach(function (m) {
+        var hasPlatne = m.stala_platne != null && m.do_zaplaty_brutto != null;
         html += '<tr><td><strong>' + esc(m.label) + '</strong></td>';
         html += '<td class="num">' + (m.kwh != null ? plNum(m.kwh, 1) : '—') + '</td>';
         html += '<td class="num">' + plNum(m.udzial_pct, 1) + '%</td>';
-        html += '<td class="num">' + plNum(m.stala_netto) + '</td>';
-        html += '<td class="num">' + plNum(m.zmienna_netto) + '</td>';
-        html += '<td class="num">' + plNum(m.razem_netto) + '</td>';
-        html += '<td class="num">' + plNum(m.razem_brutto) + '</td>';
-        html += '<td class="num"><strong>' + plMoney(m.do_zaplaty_brutto) + '</strong></td></tr>';
+        html += '<td class="num">' + (hasPlatne ? plNum(m.stala_platne) : plNum(m.stala_netto)) + '</td>';
+        html += '<td class="num">' + (hasPlatne ? plNum(m.zmienna_platne) : plNum(m.zmienna_netto)) + '</td>';
+        html += '<td class="num">' + (hasPlatne ? plNum(m.vat_platne) : '—') + '</td>';
+        html += '<td class="num"><strong>' + plMoney(hasPlatne ? m.do_zaplaty_brutto : m.razem_brutto) + '</strong></td></tr>';
       });
-      html += '</tbody></table></div></div>';
+      var cs = sp.checksum;
+      if (cs) {
+        var sumCls = cs.all_ok ? 'sum-row ok' : 'sum-row bad';
+        html += '<tr class="' + sumCls + '"><td colspan="3"><strong>SUMA</strong></td>';
+        html += '<td class="num">' + plNum(cs.sum_stala_platne) + '</td>';
+        html += '<td class="num">' + plNum(cs.sum_zmienna_platne) + '</td>';
+        html += '<td class="num">' + plNum(cs.sum_vat_platne) + '</td>';
+        html += '<td class="num"><strong>' + plMoney(cs.sum_razem_platne) + '</strong></td></tr>';
+        html += '</tbody></table></div>';
+        function chk(ok, label, got, exp) {
+          var cls = ok ? 'fv-check-ok' : 'fv-check-bad';
+          var mark = ok ? '✓' : '✗';
+          return '<span class="' + cls + '">' + mark + ' ' + label + ': ' + plNum(got) + ' / ' + plNum(exp) + '</span>';
+        }
+        html += '<p class="fv-note" style="margin-top:10px">';
+        html += chk(cs.stala_ok, 'Stałe', cs.sum_stala_platne, cs.expected_stala_platne) + ' · ';
+        html += chk(cs.zmienna_ok, 'Zmienne', cs.sum_zmienna_platne, cs.expected_zmienna_platne) + ' · ';
+        html += chk(cs.vat_ok, 'VAT', cs.sum_vat_platne, cs.expected_vat_platne) + ' · ';
+        html += chk(cs.razem_ok, 'Razem', cs.sum_razem_platne, cs.expected_razem_platne);
+        if (cs.all_ok) html += ' — <span class="fv-check-ok">sumy się zgadzają z FV (do zapłaty)</span>';
+        else html += ' — <span class="fv-check-bad">różnica groszowa po zaokrągleniach</span>';
+        html += '</p></div>';
+      } else {
+        html += '</tbody></table></div></div>';
+      }
     }
 
     detail.innerHTML = html;

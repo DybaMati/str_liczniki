@@ -229,10 +229,21 @@ def compute_split(
             total_kwh += float(kwh)
 
     n = len(meters) or 1
+    vat_pct = int(pod.get("vat_pct") or 23)
+    razem_brutto_fv = float(pod.get("razem_brutto") or 0)
+    kwota_vat_fv = float(pod.get("kwota_vat") or 0)
     do_zaplaty_total = pod.get("do_zaplaty_brutto")
     do_zaplaty_f = float(do_zaplaty_total) if do_zaplaty_total is not None else None
+    ratio_pay = (
+        do_zaplaty_f / razem_brutto_fv
+        if do_zaplaty_f is not None and razem_brutto_fv > 0
+        else 1.0
+    )
     rows: List[Dict[str, Any]] = []
     do_zaplaty_assigned = 0.0
+    sum_stala_platne = 0.0
+    sum_zmienna_platne = 0.0
+    sum_vat_platne = 0.0
     for mi, m in enumerate(meters):
         mid = str(m.get("meter_id", ""))
         kwh = m.get("kwh")
@@ -247,15 +258,27 @@ def compute_split(
         stala_part = round(stala * share, 2)
         zmienna_part = round(zmienna * share, 2)
         razem_netto = round(stala_part + zmienna_part, 2)
-        vat_pct = int(pod.get("vat_pct") or 23)
         razem_brutto = round(razem_netto * (1 + vat_pct / 100), 2)
         do_zaplaty_part: Optional[float] = None
+        stala_platne: Optional[float] = None
+        zmienna_platne: Optional[float] = None
+        vat_platne: Optional[float] = None
         if do_zaplaty_f is not None:
             if mi == len(meters) - 1:
                 do_zaplaty_part = round(do_zaplaty_f - do_zaplaty_assigned, 2)
             else:
                 do_zaplaty_part = round(do_zaplaty_f * share, 2)
                 do_zaplaty_assigned += do_zaplaty_part
+            row_netto_platne = round(do_zaplaty_part / (1 + vat_pct / 100), 2)
+            if razem_netto > 0:
+                stala_platne = round(row_netto_platne * (stala_part / razem_netto), 2)
+            else:
+                stala_platne = round(row_netto_platne / max(n, 1), 2)
+            zmienna_platne = round(row_netto_platne - stala_platne, 2)
+            vat_platne = round(do_zaplaty_part - stala_platne - zmienna_platne, 2)
+            sum_stala_platne += stala_platne
+            sum_zmienna_platne += zmienna_platne
+            sum_vat_platne += vat_platne
 
         rows.append(
             {
@@ -267,9 +290,48 @@ def compute_split(
                 "zmienna_netto": zmienna_part,
                 "razem_netto": razem_netto,
                 "razem_brutto": razem_brutto,
+                "stala_platne": stala_platne,
+                "zmienna_platne": zmienna_platne,
+                "vat_platne": vat_platne,
                 "do_zaplaty_brutto": do_zaplaty_part,
             }
         )
+
+    exp_stala = round(stala * ratio_pay, 2)
+    exp_zmienna = round(zmienna * ratio_pay, 2)
+    exp_vat = (
+        round(kwota_vat_fv * ratio_pay, 2)
+        if kwota_vat_fv > 0
+        else round((exp_stala + exp_zmienna) * vat_pct / 100, 2)
+    )
+    exp_razem = round(do_zaplaty_f, 2) if do_zaplaty_f is not None else None
+    tol = 0.03
+
+    def _ok(a: float, b: Optional[float]) -> bool:
+        if b is None:
+            return True
+        return abs(a - b) <= tol
+
+    checksum = {
+        "sum_stala_platne": round(sum_stala_platne, 2),
+        "sum_zmienna_platne": round(sum_zmienna_platne, 2),
+        "sum_vat_platne": round(sum_vat_platne, 2),
+        "sum_razem_platne": round(do_zaplaty_f, 2) if do_zaplaty_f is not None else 0.0,
+        "expected_stala_platne": exp_stala,
+        "expected_zmienna_platne": exp_zmienna,
+        "expected_vat_platne": exp_vat,
+        "expected_razem_platne": exp_razem,
+        "stala_ok": _ok(sum_stala_platne, exp_stala),
+        "zmienna_ok": _ok(sum_zmienna_platne, exp_zmienna),
+        "vat_ok": _ok(sum_vat_platne, exp_vat),
+        "razem_ok": _ok(do_zaplaty_f or 0, exp_razem),
+        "all_ok": (
+            _ok(sum_stala_platne, exp_stala)
+            and _ok(sum_zmienna_platne, exp_zmienna)
+            and _ok(sum_vat_platne, exp_vat)
+            and _ok(do_zaplaty_f or 0, exp_razem)
+        ),
+    }
 
     return {
         "okres_od_iso": parsed.get("okres_od_iso"),
@@ -280,6 +342,8 @@ def compute_split(
         "zmienna_netto_total": zmienna,
         "do_zaplaty_total": do_zaplaty_f,
         "razem_brutto_fv": pod.get("razem_brutto"),
+        "ratio_platne": round(ratio_pay, 6) if do_zaplaty_f is not None else None,
+        "checksum": checksum,
         "fixed_split_mode": fixed_split,
         "meters": rows,
     }
