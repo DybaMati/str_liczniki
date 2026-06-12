@@ -229,6 +229,8 @@ def compute_split(
             total_kwh += float(kwh)
 
     n = len(meters) or 1
+    do_zaplaty_total = pod.get("do_zaplaty_brutto")
+    do_zaplaty_f = float(do_zaplaty_total) if do_zaplaty_total is not None else None
     rows: List[Dict[str, Any]] = []
     for m in meters:
         mid = str(m.get("meter_id", ""))
@@ -246,6 +248,9 @@ def compute_split(
         razem_netto = round(stala_part + zmienna_part, 2)
         vat_pct = int(pod.get("vat_pct") or 23)
         razem_brutto = round(razem_netto * (1 + vat_pct / 100), 2)
+        do_zaplaty_part = (
+            round(do_zaplaty_f * share, 2) if do_zaplaty_f is not None else None
+        )
 
         rows.append(
             {
@@ -257,6 +262,7 @@ def compute_split(
                 "zmienna_netto": zmienna_part,
                 "razem_netto": razem_netto,
                 "razem_brutto": razem_brutto,
+                "do_zaplaty_brutto": do_zaplaty_part,
             }
         )
 
@@ -267,6 +273,8 @@ def compute_split(
         "kwh_liczniki_suma": round(total_kwh, 3),
         "stala_netto_total": stala,
         "zmienna_netto_total": zmienna,
+        "do_zaplaty_total": do_zaplaty_f,
+        "razem_brutto_fv": pod.get("razem_brutto"),
         "fixed_split_mode": fixed_split,
         "meters": rows,
     }

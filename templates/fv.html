@@ -288,10 +288,13 @@
     html += '<div class="box"><div class="lbl">Stałe (netto)</div><div class="val stala">' + plMoney(pod.stala_netto) + '</div></div>';
     html += '<div class="box"><div class="lbl">Zmienne (netto)</div><div class="val zmienna">' + plMoney(pod.zmienna_netto) + '</div></div>';
     html += '<div class="box"><div class="lbl">Razem brutto (FV)</div><div class="val">' + plMoney(pod.razem_brutto) + '</div></div>';
-    html += '<div class="box"><div class="lbl">Do zapłaty</div><div class="val pay">' + plMoney(pod.do_zaplaty_brutto) + '</div></div>';
-    if (pod.depozyt_brutto) {
-      html += '<div class="box"><div class="lbl">Depozyt (FV)</div><div class="val">' + plMoney(pod.depozyt_brutto) + '</div></div>';
+    if (pod.wartosc_energii_pobranej_brutto != null && pod.wartosc_energii_pobranej_brutto !== pod.razem_brutto) {
+      html += '<div class="box"><div class="lbl">Wartość energii (nagłówek FV)</div><div class="val">' + plMoney(pod.wartosc_energii_pobranej_brutto) + '</div></div>';
     }
+    if (pod.depozyt_brutto) {
+      html += '<div class="box"><div class="lbl">Pobrano z depozytu</div><div class="val">' + plMoney(pod.depozyt_brutto) + '</div></div>';
+    }
+    html += '<div class="box"><div class="lbl">Do zapłaty</div><div class="val pay">' + plMoney(pod.do_zaplaty_brutto) + '</div></div>';
     html += '</div>';
 
     html += '<div class="fv-panel"><h3>1. Rozliczenie sprzedaży energii pobranej</h3>';
@@ -313,7 +316,16 @@
       html += '<p class="fv-note">Okres bazy: ' + esc(sp.okres_od_iso) + ' … ' + esc(sp.okres_do_iso);
       html += ' · Suma kWh liczników: <strong>' + plNum(sp.kwh_liczniki_suma, 1) + '</strong>';
       if (sp.kwh_fv != null) html += ' · kWh na FV: <strong>' + sp.kwh_fv + '</strong>';
-      html += '</p><div class="wrap-fv-tbl"><table class="fv-tbl"><thead><tr><th>Licznik</th><th class="num">kWh</th><th class="num">Udział</th><th class="num">Stałe netto</th><th class="num">Zmienne netto</th><th class="num">Razem netto</th><th class="num">Razem brutto</th></tr></thead><tbody>';
+      html += '</p>';
+      if (sp.do_zaplaty_total != null) {
+        html += '<p class="fv-note">Kwota do zapłaty na FV: <strong style="color:#86efac">' + plMoney(sp.do_zaplaty_total) + '</strong>';
+        html += ' (cała FV brutto <strong>' + plMoney(sp.razem_brutto_fv) + '</strong>';
+        if (pod.depozyt_brutto) html += ' minus depozyt <strong>' + plMoney(pod.depozyt_brutto) + '</strong>';
+        html += ')</p>';
+      } else {
+        html += '<p class="fv-note">Kolumna „Razem brutto” to pełna wartość FV — nie kwota do przelewu po depozycie.</p>';
+      }
+      html += '<div class="wrap-fv-tbl"><table class="fv-tbl"><thead><tr><th>Licznik</th><th class="num">kWh</th><th class="num">Udział</th><th class="num">Stałe netto</th><th class="num">Zmienne netto</th><th class="num">Razem netto</th><th class="num">Razem brutto (FV)</th><th class="num">Do zapłaty</th></tr></thead><tbody>';
       sp.meters.forEach(function (m) {
         html += '<tr><td><strong>' + esc(m.label) + '</strong></td>';
         html += '<td class="num">' + (m.kwh != null ? plNum(m.kwh, 1) : '—') + '</td>';
@@ -321,7 +333,8 @@
         html += '<td class="num">' + plNum(m.stala_netto) + '</td>';
         html += '<td class="num">' + plNum(m.zmienna_netto) + '</td>';
         html += '<td class="num">' + plNum(m.razem_netto) + '</td>';
-        html += '<td class="num"><strong>' + plNum(m.razem_brutto) + '</strong></td></tr>';
+        html += '<td class="num">' + plNum(m.razem_brutto) + '</td>';
+        html += '<td class="num"><strong>' + plMoney(m.do_zaplaty_brutto) + '</strong></td></tr>';
       });
       html += '</tbody></table></div></div>';
     }

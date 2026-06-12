@@ -370,26 +370,33 @@ def parse_energa_pdf_text(text: str) -> Dict[str, Any]:
             return None
         return _pl_money(m.group(1))
 
-    wartosc_brutto = _find_money(r"Rozliczenie energii elektrycznej i świadczenia usługi dystrybucji\s+([\d,]+)")
-    if wartosc_brutto is None:
-        wartosc_brutto = _find_money(r"Razem:\s*([\d,]+)\s*zł")
+    skladowe_m = re.search(
+        r"Rozliczenie energii elektrycznej i świadczenia usługi dystrybucji\s+"
+        r"([\d,]+)\s+([\d,]+)\s+([\d,]+)",
+        text,
+        re.I,
+    )
     netto_razem_m = re.search(r"Razem wartość netto \(1 \+ 2\)\s+([\d,]+)", text)
     netto_razem = _pl_money(netto_razem_m.group(1)) if netto_razem_m else None
-
-    vat_m = re.search(
-        r"Rozliczenie energii elektrycznej i świadczenia usługi dystrybucji\s+[\d,]+\s+([\d,]+)\s+([\d,]+)",
-        text,
-    )
-    kwota_vat = _pl_money(vat_m.group(1)) if vat_m else None
-    if wartosc_brutto is None and vat_m:
-        wartosc_brutto = _pl_money(vat_m.group(2))
+    kwota_vat: Optional[float] = None
+    wartosc_brutto: Optional[float] = None
+    if skladowe_m:
+        netto_razem = _pl_money(skladowe_m.group(1))
+        kwota_vat = _pl_money(skladowe_m.group(2))
+        wartosc_brutto = _pl_money(skladowe_m.group(3))
+    if wartosc_brutto is None:
+        wartosc_brutto = _find_money(r"Razem:\s*([\d,]+)\s*zł")
 
     depozyt = _find_money(r"Pobrano z DEPOZYTU\s+([\d,]+)")
-    do_zaplaty = _find_money(r"Wartość do zapłaty\s*\n\s*([\d,]+)")
+    wartosc_pobrana = _find_money(r"wartość energii pobranej\s+([\d,]+)")
+
+    do_zaplaty = _find_money(r"Wartość do zapłaty\s+([\d,]+)")
+    if do_zaplaty is None:
+        do_zaplaty = _find_money(r"Wartość do zapłaty\s*\n\s*([\d,]+)")
     if do_zaplaty is None:
         do_zaplaty = _find_money(r"Kwota płatności:\s*([\d,]+)")
-
-    wartosc_pobrana = _find_money(r"wartość energii pobranej\s+([\d,]+)")
+    if do_zaplaty is None and wartosc_pobrana is not None and depozyt is not None:
+        do_zaplaty = round(wartosc_pobrana - depozyt, 2)
 
     all_items = sprzedaz + dystrybucja
     stala_netto = sum(i["wartosc_netto"] for i in all_items if i["rodzaj"] == "stala")
